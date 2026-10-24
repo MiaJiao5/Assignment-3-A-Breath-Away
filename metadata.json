@@ -1,0 +1,6 @@
+{
+  "name": "短暂漫游 (Brief Roaming)",
+  "description": "喷枪柔焦与弥散光晕美学的治愈系互动H5应用，伴随毛茸茸的白色小精灵在四个引力场星球漫步、坐下听歌并放飞星尘心情。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

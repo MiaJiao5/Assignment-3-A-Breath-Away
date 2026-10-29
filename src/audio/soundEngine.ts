@@ -129,13 +129,13 @@ class SoundEngine {
       this.masterGain.connect(this.ctx.destination);
     }
     if (this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this.ctx.resume().catch(() => window.dispatchEvent(new Event('breath-away-audio-error')));
     }
     return this.ctx;
   }
 
   public unlock(): void {
-    this.ensureContext();
+    try { this.ensureContext(); } catch { window.dispatchEvent(new Event('breath-away-audio-error')); }
   }
 
   /**
@@ -261,7 +261,7 @@ class SoundEngine {
         audioEl.src = planetConfig.externalAudioUrl;
         audioEl.loop = true;
         audioEl.volume = this.isMuted ? 0 : 0.75;
-        audioEl.play().catch(() => {});
+        audioEl.play().catch(() => window.dispatchEvent(new Event('breath-away-audio-error')));
         return;
       }
     }

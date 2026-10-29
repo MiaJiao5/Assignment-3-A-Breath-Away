@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -141,6 +142,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
   onTapSpirit,
   onSelectLandmark,
 }) => {
+  const { copy } = useLanguage();
   const mountRef = useRef<HTMLDivElement | null>(null);
 
   // 使用 Ref 同步最新 React 状态，避免重建 WebGL 上下文
@@ -924,7 +926,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
               : 'airbrush-cloud-bubble text-slate-700'
           }`}
         >
-          <p className="text-xs leading-relaxed font-medium tracking-wide break-words">
+          <p className="text-xs leading-relaxed font-medium tracking-wide break-words whitespace-pre-wrap">
             {overheadBubble.text}
           </p>
           <div
@@ -942,7 +944,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       <div
         ref={mountRef}
         className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
-        title="手指或鼠标滑动旋转星球，或通过底部控制器带小精灵漫步"
+        title={copy.stageHint} aria-label={copy.stageHint}
       />
     </div>
   );

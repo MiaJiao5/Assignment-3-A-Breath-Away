@@ -399,3 +399,59 @@
   animation: softWobble 0.55s ease-in-out;
 }
 
+/* Reserve a separate row for the switch so it stays reachable above panels. */
+.language-toggle {
+  position: absolute;
+  top: max(12px, env(safe-area-inset-top));
+  right: 16px;
+  z-index: 70;
+  display: flex;
+  padding: 3px;
+  border: 1px solid rgba(255, 255, 255, .8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .92);
+  color: #334155;
+  box-shadow: 0 3px 14px rgba(60, 40, 90, .15);
+}
+.language-toggle button {
+  min-width: 44px;
+  min-height: 34px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.language-toggle button[aria-pressed="true"] {
+  background: #56486c;
+  color: white;
+}
+button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid #78649b;
+  outline-offset: 3px;
+}
+.app-header { margin-top: calc(52px + env(safe-area-inset-top, 0px)); flex-shrink: 0; }
+.app-header > div:first-child { flex: 1 1 100%; }
+.app-header > div:last-child { margin-left: auto; }
+.roaming-mobile-frame > section { min-height: 0; overflow-y: auto; }
+.roaming-mobile-frame button { white-space: normal; overflow-wrap: anywhere; }
+.roaming-mobile-frame input { user-select: text; }
+.roaming-mobile-frame section > div { flex-shrink: 0; }
+.roaming-mobile-frame section .planet-stage { flex-shrink: 1; min-height: 190px; }
+.planet-actions { flex-wrap: wrap; gap: 8px; }
+.planet-picker { max-height: 100%; overflow-y: auto; }
+.planet-picker button > div { min-width: 0; }
+@media (max-height: 740px) {
+  .roaming-mobile-frame > section { padding-bottom: 12px; }
+  .roaming-mobile-frame section .planet-stage { min-height: 180px; }
+}
+
+
+.feedback-status {
+  flex-shrink: 0;
+  margin: 4px 16px;
+  padding: 6px 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .94);
+  color: #334155;
+}

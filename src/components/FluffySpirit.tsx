@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import React, { useEffect, useState } from 'react';
 
 export type SpiritPose = 'idle' | 'walking' | 'sitting' | 'waving';
@@ -6,6 +7,7 @@ export interface OverheadBubbleData {
   id: number;
   text: string;
   isError?: boolean;
+  messageKey?: 'emptyErrorBubble' | 'spiritHint';
 }
 
 interface FluffySpiritProps {
@@ -23,6 +25,7 @@ export const FluffySpirit: React.FC<FluffySpiritProps> = ({
   onTapSpirit,
   size = 'normal',
 }) => {
+  const { copy } = useLanguage();
   const [isBlinking, setIsBlinking] = useState(false);
   const [isHopping, setIsHopping] = useState(false);
 
@@ -52,7 +55,7 @@ export const FluffySpirit: React.FC<FluffySpiritProps> = ({
         onClick={handleSpiritClick}
         className="relative flex items-center justify-center cursor-pointer select-none"
         style={{ width: 280, height: 220 }}
-        title="轻点毛绒小精灵"
+        title={copy.tapSpirit} aria-label={copy.tapSpirit}
       >
         {/* 背后温暖的喷枪柔焦白色光晕 */}
         <div
@@ -346,7 +349,7 @@ export const FluffySpirit: React.FC<FluffySpiritProps> = ({
               : 'airbrush-cloud-bubble text-slate-700'
           }`}
         >
-          <p className="text-xs leading-relaxed font-medium tracking-wide break-words">
+          <p className="text-xs leading-relaxed font-medium tracking-wide break-words whitespace-pre-wrap">
             {overheadBubble.text}
           </p>
           {/* 云朵气泡下方两个柔和的小圆点尾巴 */}
@@ -399,7 +402,7 @@ export const FluffySpirit: React.FC<FluffySpiritProps> = ({
       <div
         onClick={handleSpiritClick}
         className={`w-full h-full cursor-pointer ${animationClass}`}
-        title="轻点小精灵互动"
+        title={copy.tapSpirit} aria-label={copy.tapSpirit}
       >
         <svg
           viewBox="0 0 160 160"

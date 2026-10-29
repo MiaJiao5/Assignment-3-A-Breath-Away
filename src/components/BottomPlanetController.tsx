@@ -1,3 +1,4 @@
+import { useLanguage } from '../i18n/LanguageContext';
 import React, { useEffect, useRef, useState } from 'react';
 import { JoystickVector } from './ThreePlanetStage';
 
@@ -20,6 +21,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
   isNearPortal,
   walkHint,
 }) => {
+  const { copy } = useLanguage();
   const padRef = useRef<HTMLDivElement | null>(null);
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -189,7 +191,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
             }}
           >
             <span>◀</span>
-            <span>向左走</span>
+            <span>{copy.left}</span>
           </button>
 
           <button
@@ -204,7 +206,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
                 : 'rgba(255, 255, 255, 0.55)',
             }}
           >
-            🌀 寻向传送门
+            {copy.portalNav}
           </button>
         </div>
 
@@ -223,7 +225,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
               boxShadow:
                 'inset 0 2px 10px rgba(110, 95, 140, 0.18), 0 0 20px 4px rgba(255,255,255,0.85)',
             }}
-            title="拖动摇杆控制小精灵在星球上360°自由行走"
+            title={copy.joystickHint} aria-label={copy.joystickHint}
           >
             {/* 十字微刻度指示 */}
             <span className="absolute top-1.5 text-[8px] text-slate-400 pointer-events-none">▲</span>
@@ -246,7 +248,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
             </div>
           </div>
           <span className="text-[10px] text-slate-500 mt-0.5 tracking-wider">
-            漫步摇杆
+            {copy.joystick}
           </span>
         </div>
 
@@ -265,7 +267,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
               boxShadow: '0 4px 14px rgba(95,80,125,0.12), 0 0 12px rgba(255,255,255,0.75)',
             }}
           >
-            <span>向右走</span>
+            <span>{copy.right}</span>
             <span>▶</span>
           </button>
 
@@ -281,7 +283,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
                 : 'rgba(255, 255, 255, 0.55)',
             }}
           >
-            🪑 寻向聆听石
+            {copy.rockNav}
           </button>
         </div>
       </div>

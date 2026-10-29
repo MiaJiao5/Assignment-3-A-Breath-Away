@@ -1,13 +1,10 @@
+import { LanguageToggle, useLanguage } from './i18n/LanguageContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BUILTIN_STARDUST_QUOTES,
-  INTRO_COPY,
   PLANETS,
   PLANET_LIST,
   PlanetId,
-  QUIZ_QUESTIONS,
   QuizChoice,
-  ROAMING_COPY,
   calculateAssignedPlanet,
 } from './data/roamingData';
 import { soundEngine } from './audio/soundEngine';
@@ -25,6 +22,7 @@ type AppAct = 'intro' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 interface FloatingStardustItem {
   id: number;
   text: string;
+  builtinIndex?: number;
   leftPercent: number;
   driftX: number;
 }
@@ -34,6 +32,9 @@ const LOCAL_STORAGE_KEY = 'brief_roaming_user_stardust_v1';
 const clampLat = (lat: number) => Math.max(-0.62, Math.min(0.62, lat));
 
 export default function App() {
+  const { copy } = useLanguage();
+  const { INTRO_COPY, QUIZ_QUESTIONS, ROAMING_COPY, BUILTIN_STARDUST_QUOTES } = copy;
+  const [feedback, setFeedback] = useState<'releaseSuccess' | 'audioError' | null>(null);
   const [act, setAct] = useState<AppAct>('intro');
   const [quizStep, setQuizStep] = useState<number>(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizChoice[]>([]);
@@ -109,7 +110,8 @@ export default function App() {
   // 传送门浮层开关
   const [isPortalModalOpen, setIsPortalModalOpen] = useState<boolean>(false);
 
-  const activePlanet = PLANETS[planetId];
+  const activePlanet = { ...PLANETS[planetId], ...copy.planets[planetId] };
+  const planetList = PLANET_LIST.map(p => ({ ...p, ...copy.planets[p.id] }));
 
   // 当进入坐下听歌状态（isMusicPlaying === true）时，每隔 3.5 秒从星球背后飘出一句星尘文字
   useEffect(() => {
@@ -121,6 +123,8 @@ export default function App() {
     if (allQuotes.length === 0) return;
 
     const spawnStardust = (customText?: string) => {
+      const cursor = quoteCursorRef.current % allQuotes.length;
+      const builtinIndex = !customText && cursor >= userQuotes.length ? cursor - userQuotes.length : undefined;
       const text =
         customText ?? allQuotes[quoteCursorRef.current % allQuotes.length];
       if (!customText) {
@@ -131,7 +135,7 @@ export default function App() {
       const leftPercent = 12 + Math.random() * 44;
       const driftX = (Math.random() - 0.5) * 32;
 
-      setFloatingStardust((prev) => [...prev.slice(-5), { id, text, leftPercent, driftX }]);
+      setFloatingStardust((prev) => [...prev.slice(-5), { id, text, builtinIndex, leftPercent, driftX }]);
     };
 
     const initialTimer = window.setTimeout(() => {
@@ -149,6 +153,12 @@ export default function App() {
     };
   }, [act, isMusicPlaying, userQuotes]);
 
+  useEffect(() => {
+    const onAudioError = () => setFeedback('audioError');
+    window.addEventListener('breath-away-audio-error', onAudioError);
+    return () => window.removeEventListener('breath-away-audio-error', onAudioError);
+  }, []);
+
   // 组件卸载时清理音频与动画帧
   useEffect(() => {
     return () => {
@@ -160,7 +170,7 @@ export default function App() {
   }, []);
 
   const triggerOverheadBubble = useCallback(
-    (text: string, isError = false, durationMs = 4000) => {
+    (text: string, isError = false, durationMs = 4000, messageKey?: 'emptyErrorBubble' | 'spiritHint') => {
       if (bubbleTimerRef.current) {
         clearTimeout(bubbleTimerRef.current);
       }
@@ -168,6 +178,7 @@ export default function App() {
         id: Date.now(),
         text,
         isError,
+        messageKey,
       });
       bubbleTimerRef.current = window.setTimeout(() => {
         setOverheadBubble(null);
@@ -178,7 +189,7 @@ export default function App() {
 
   // 【第一幕 -> 第二幕】开始短暂漫游
   const handleStartRoaming = () => {
-    soundEngine.unlock();
+    try { soundEngine.unlock(); } catch { setFeedback('audioError'); }
     soundEngine.playSoftClick(40);
     setQuizAnswers([]);
     setQuizStep(0);
@@ -188,7 +199,8 @@ export default function App() {
   // 【第二幕】回答三步心境校准问卷
   const handleSelectOption = (choice: QuizChoice) => {
     soundEngine.playSoftClick(choice === 'A' ? 0 : choice === 'B' ? 60 : 120);
-    const updated = [...quizAnswers, choice];
+    const updated = [...quizAnswers];
+    updated[quizStep] = choice;
     setQuizAnswers(updated);
 
     if (quizStep < QUIZ_QUESTIONS.length - 1) {
@@ -199,18 +211,28 @@ export default function App() {
       setPlanetId(assigned);
       setAct('warp');
       soundEngine.playWarpTransition();
-
-      window.setTimeout(() => {
-        planetCoordsRef.current = { lon: 0.28, lat: 0.04 };
-        targetCoordsRef.current = { lon: 0.28, lat: 0.04 };
-        springVelocityRef.current = { lon: 0, lat: 0 };
-        joystickInputRef.current = { x: 0, y: 0 };
-        setSpiritPose('idle');
-        setIsMusicPlaying(false);
-        setAct('roaming');
-      }, 1500);
     }
   };
+
+  const handleSkipQuiz = () => {
+    setPlanetId(calculateAssignedPlanet(quizAnswers));
+    soundEngine.playWarpTransition();
+    setAct('warp');
+  };
+
+  useEffect(() => {
+    if (act !== 'warp') return;
+    const timer = window.setTimeout(() => {
+      planetCoordsRef.current = { lon: 0.28, lat: 0.04 };
+      targetCoordsRef.current = { lon: 0.28, lat: 0.04 };
+      springVelocityRef.current = { lon: 0, lat: 0 };
+      joystickInputRef.current = { x: 0, y: 0 };
+      setSpiritPose('idle');
+      setIsMusicPlaying(false);
+      setAct('roaming');
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [act]);
 
   // 底部控制器漫步状态同步
   const handleWalkStateChange = useCallback(
@@ -435,23 +457,24 @@ export default function App() {
     } else {
       setSpiritPose('sitting');
       setIsMusicPlaying(true);
-      soundEngine.startPlanetMusic(planetId);
+      try { soundEngine.startPlanetMusic(planetId); } catch { setFeedback('audioError'); }
     }
   };
 
   // 树洞放飞心情（含空输入错误处理）
   const handleReleaseMood = (e: React.FormEvent) => {
     e.preventDefault();
-    const trimmed = moodInput.trim();
+    const trimmed = moodInput;
 
-    if (!trimmed) {
+    if (!trimmed.trim()) {
       soundEngine.playSoftClick(-80);
-      triggerOverheadBubble(ROAMING_COPY.emptyErrorBubble, true, 3600);
+      triggerOverheadBubble('', true, 3600, 'emptyErrorBubble');
       return;
     }
 
     soundEngine.playSpiritChime();
     setMoodInput('');
+    setFeedback('releaseSuccess');
 
     // 1. 头顶弹出边缘柔和的云朵状白色气泡显示 4 秒
     triggerOverheadBubble(trimmed, false, 4000);
@@ -485,7 +508,7 @@ export default function App() {
     setPlanetId(nextPlanetId);
 
     if (isMusicPlaying) {
-      soundEngine.startPlanetMusic(nextPlanetId);
+      try { soundEngine.startPlanetMusic(nextPlanetId); } catch { setFeedback('audioError'); }
     }
   };
 
@@ -509,6 +532,7 @@ export default function App() {
     setQuizAnswers([]);
     setQuizStep(0);
     setFloatingStardust([]);
+    setFeedback(null);
     setOverheadBubble(null);
     setSpiritPose('idle');
     setIsMusicPlaying(false);
@@ -589,7 +613,7 @@ export default function App() {
       />
 
       {/* 预留 <audio> 外部音频文件播放标签 */}
-      <audio id="brief-roaming-external-audio" preload="auto" className="hidden" />
+      <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
 
       {/* 核心手机竖屏比例容器 (max-width: 414px; height: 100vh; max-height: 860px; border-radius: 28px) */}
       <main
@@ -661,13 +685,14 @@ export default function App() {
         </div>
 
         {/* ================= 3. 顶部轻量状态栏与常驻告别按钮 ================= */}
-        <header className="relative z-30 flex items-center justify-between px-5 pt-4 pb-1">
+        <LanguageToggle />
+        <header className="app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1">
           <div className="flex items-center gap-2">
             <span
               className="text-xs font-medium tracking-widest opacity-85"
               style={{ color: currentColors.textSecondary }}
             >
-              {act === 'roaming' ? activePlanet.fullName : '短暂漫游 · Brief Roaming'}
+              {act === 'roaming' ? activePlanet.fullName : copy.title}
             </span>
           </div>
 
@@ -678,9 +703,9 @@ export default function App() {
                 onClick={handleToggleMute}
                 style={softPillStyle}
                 className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-700 flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
-                title={isMuted ? '开启声音' : '柔和静音'}
+                title={isMuted ? copy.soundOn : copy.mute} aria-label={isMuted ? copy.soundOn : copy.mute}
               >
-                <span>{isMuted ? '🔇 静音中' : '🎧 声音开'}</span>
+                <span>{isMuted ? copy.muted : copy.soundOn}</span>
               </button>
             )}
 
@@ -701,9 +726,9 @@ export default function App() {
         {act === 'intro' && (
           <section className="relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10">
             <div className="text-center mt-4">
-              <p className="text-xs tracking-[0.25em] opacity-65 mb-2">BRIEF ROAMING</p>
+              <p className="text-xs tracking-[0.25em] opacity-65 mb-2">{copy.title}</p>
               <h1 className="font-serif-soft text-2xl font-semibold tracking-wider">
-                短暂漫游
+                {copy.title}
               </h1>
             </div>
 
@@ -718,10 +743,13 @@ export default function App() {
                 <p className="text-[15px] leading-relaxed font-normal tracking-wide text-slate-700">
                   {INTRO_COPY.welcome}
                 </p>
+                <p className="mt-3 text-xs text-slate-600">
+                  {copy.support}
+                </p>
               </div>
             </div>
 
-            <div className="w-full flex justify-center">
+            <div className="w-full flex flex-col items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={handleStartRoaming}
@@ -736,6 +764,7 @@ export default function App() {
         {/* ================= 第二幕：三步心境校准（分支评估问卷） ================= */}
         {act === 'quiz' && (
           <section className="relative z-20 flex-1 flex flex-col items-center justify-between px-6 pt-4 pb-10">
+            <div role="status" className="text-xs text-center">{copy.progress.replace('{n}', String(quizStep + 1))}</div>
             <div className="flex items-center gap-3 mt-2">
               {QUIZ_QUESTIONS.map((q, idx) => (
                 <div
@@ -776,7 +805,13 @@ export default function App() {
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => handleSelectOption(option.value)}
+                    onClick={() => setQuizAnswers(prev => {
+                      const next = [...prev];
+                      next[quizStep] = option.value;
+                      return next;
+                    })}
+                    aria-pressed={quizAnswers[quizStep] === option.value}
+                    style={quizAnswers[quizStep] === option.value ? { outline: '2px solid #78649b' } : undefined}
                     className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[15px] font-medium text-slate-700 flex items-center justify-between cursor-pointer"
                   >
                     <span>{option.label}</span>
@@ -786,8 +821,27 @@ export default function App() {
               </div>
             </div>
 
+            <div className="flex flex-wrap justify-center gap-4 text-xs my-3">
+              <button type="button" onClick={() => {
+                if (quizStep > 0) setQuizStep(quizStep - 1);
+                else setAct('intro');
+              }}>
+                {copy.back}
+              </button>
+              <button
+                type="button"
+                disabled={!quizAnswers[quizStep]}
+                className="disabled:opacity-40"
+                onClick={() => handleSelectOption(quizAnswers[quizStep])}
+              >
+                {copy.continue}
+              </button>
+              <button type="button" onClick={handleSkipQuiz}>
+                {copy.skip}
+              </button>
+            </div>
             <p className="text-xs opacity-60 tracking-wider">
-              跟随直觉轻点选项 · 校准引力场频率
+              {copy.quizHint}
             </p>
           </section>
         )}
@@ -800,7 +854,7 @@ export default function App() {
             </div>
             <div className="airbrush-soft-card px-7 py-6 rounded-[32px] max-w-[330px]">
               <p className="text-[15px] leading-relaxed font-medium text-slate-800 tracking-wide">
-                正在收集你散落的思绪…… 正在为你接通代号 [ {activePlanet.fullName} ] 的引力场。
+                {copy.gathering}<br />{copy.tuning}<br />{activePlanet.fullName}
               </p>
             </div>
           </section>
@@ -824,7 +878,7 @@ export default function App() {
                   style={softPillStyle}
                 >
                   <span className="text-[11px] text-slate-700 font-medium">
-                    ♪ 正在播放：{activePlanet.name}治愈律动
+                    ♪ {copy.playing}: {activePlanet.name}
                   </span>
                   <span className="text-slate-400">·</span>
                   <button
@@ -833,8 +887,8 @@ export default function App() {
                     className="text-[11px] font-medium text-slate-700 underline decoration-dotted cursor-pointer whitespace-nowrap"
                   >
                     {whiteNoiseEnabled
-                      ? `🌿 ${activePlanet.noiseLabel}：开启`
-                      : `🌿 ${activePlanet.noiseLabel}：关闭`}
+                      ? `🌿 ${activePlanet.noiseLabel}: ${copy.on}`
+                      : `🌿 ${activePlanet.noiseLabel}: ${copy.off}`}
                   </button>
                 </div>
               )}
@@ -856,8 +910,8 @@ export default function App() {
                     } as React.CSSProperties
                   }
                 >
-                  <p className="text-xs text-slate-700 font-medium leading-relaxed text-center">
-                    “{item.text}”
+                  <p className="text-xs text-slate-700 font-medium leading-relaxed text-center whitespace-pre-wrap break-words">
+                    {item.builtinIndex === undefined ? item.text : BUILTIN_STARDUST_QUOTES[item.builtinIndex]}
                   </p>
                 </div>
               ))}
@@ -873,7 +927,7 @@ export default function App() {
               onMouseMove={handleStageMouseMove}
               onMouseUp={handleStageMouseUp}
               onMouseLeave={handleStageMouseUp}
-              className="relative flex-1 min-h-[250px] flex flex-col items-center justify-center z-20 touch-none"
+              className="planet-stage relative flex-1 min-h-[250px] flex flex-col items-center justify-center z-20 touch-none"
             >
               <ThreePlanetStage
                 planetId={planetId}
@@ -883,19 +937,19 @@ export default function App() {
                 planetCoordsRef={planetCoordsRef}
                 targetCoordsRef={targetCoordsRef}
                 springVelocityRef={springVelocityRef}
-                overheadBubble={overheadBubble}
+                overheadBubble={overheadBubble ? { ...overheadBubble, text: overheadBubble.messageKey === 'emptyErrorBubble' ? ROAMING_COPY.emptyErrorBubble : overheadBubble.messageKey === 'spiritHint' ? copy.spiritHint : overheadBubble.text } : null}
                 onNearLandmarkChange={handleNearLandmarkChange}
                 onTapSpirit={() => {
                   soundEngine.playSpiritChime();
                   if (!overheadBubble) {
-                    triggerOverheadBubble('呼噜呼噜~ 手指滑动星球或用底部摇杆带我走走吧！', false, 3000);
+                    triggerOverheadBubble('', false, 3000, 'spiritHint');
                   }
                 }}
                 onSelectLandmark={handleSelect3DLandmark}
               />
 
               {/* 地标核心操作按钮：[ 🪑 坐下听歌 ] 与 [ 🌀 传送门 ] */}
-              <div className="relative z-30 -mt-3 mb-1 flex items-center justify-center gap-3">
+              <div className="planet-actions relative z-30 -mt-3 mb-1 flex items-center justify-center gap-3">
                 <button
                   type="button"
                   onClick={handleSitAndListen}
@@ -926,6 +980,7 @@ export default function App() {
               </div>
             </div>
 
+            <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? copy[feedback] : null}</p>
             {/* 底部可折叠控制器与树洞倾诉栏 (Collapsible Bottom Control Dock) */}
             <div className="relative z-30 px-4 pb-4 flex flex-col items-center">
               <button
@@ -934,7 +989,7 @@ export default function App() {
                 style={softPillStyle}
                 className="mb-1.5 px-3 py-0.5 rounded-full text-[10px] font-medium text-slate-600 cursor-pointer whitespace-nowrap"
               >
-                {isDockCollapsed ? '▴ 展开底部漫步控制器' : '▾ 收起控制栏静享画面'}
+                {isDockCollapsed ? copy.expand : copy.collapse}
               </button>
 
               {!isDockCollapsed && (
@@ -950,8 +1005,9 @@ export default function App() {
                     walkHint={ROAMING_COPY.walkHint}
                   />
 
+                  <h2 className="text-xs text-center">{copy.inputTitle}</h2>
                   {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
-                  <form
+                  <form aria-label={copy.releaseBubble}
                     onSubmit={handleReleaseMood}
                     className="flex items-center gap-2 p-1.5 rounded-full"
                     style={softPillStyle}
@@ -962,7 +1018,8 @@ export default function App() {
                       onChange={(e) => setMoodInput(e.target.value)}
                       maxLength={60}
                       placeholder={ROAMING_COPY.inputPlaceholder}
-                      className="flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
+                      aria-label={copy.inputTitle}
+                      className="min-w-0 flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
                     />
                     <button
                       type="submit"
@@ -984,8 +1041,10 @@ export default function App() {
                 style={{ background: 'rgba(255, 255, 255, 0.48)' }}
               >
                 <div
+                  role="dialog" aria-label={ROAMING_COPY.portalButton}
+                  onKeyDown={(e) => { if (e.key === 'Escape') setIsPortalModalOpen(false); }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-[340px] p-6 rounded-[32px] text-center text-slate-800"
+                  className="planet-picker w-full max-w-[340px] p-6 rounded-[32px] text-center text-slate-800"
                   style={{
                     background:
                       'radial-gradient(120% 120% at 50% 20%, rgba(255,255,255,0.96) 0%, rgba(255,248,252,0.9) 100%)',
@@ -998,7 +1057,7 @@ export default function App() {
                   </p>
 
                   <div className="flex flex-col gap-2.5">
-                    {PLANET_LIST.map((p) => {
+                    {planetList.map((p) => {
                       const isCurrent = p.id === planetId;
                       return (
                         <button
@@ -1012,14 +1071,14 @@ export default function App() {
                         >
                           <div>
                             <div className="text-xs font-semibold text-slate-800">
-                              代号 {p.fullName}
+                              {p.fullName}
                             </div>
                             <div className="text-[11px] text-slate-600 mt-0.5">
                               {p.subtitle}
                             </div>
                           </div>
                           <span className="text-xs font-medium text-slate-700 whitespace-nowrap ml-2">
-                            {isCurrent ? '当前所在' : '前往 🌀'}
+                            {isCurrent ? copy.current : copy.visit}
                           </span>
                         </button>
                       );
@@ -1031,7 +1090,7 @@ export default function App() {
                     onClick={() => setIsPortalModalOpen(false)}
                     className="mt-4 text-xs text-slate-600 hover:text-slate-900 py-1.5 px-4 cursor-pointer"
                   >
-                    留在当前星球
+                    {copy.stay}
                   </button>
                 </div>
               </div>
@@ -1047,7 +1106,7 @@ export default function App() {
                 className="text-xs tracking-[0.2em] opacity-75"
                 style={{ color: currentColors.textSecondary }}
               >
-                GENTLE FAREWELL
+                {copy.farewellHeading}
               </p>
             </div>
 
@@ -1059,19 +1118,20 @@ export default function App() {
 
               <div className="airbrush-soft-card mt-6 px-6 py-6 rounded-[32px] max-w-[330px]">
                 <p className="font-serif-soft text-[16px] leading-relaxed font-medium text-slate-800">
-                  {ROAMING_COPY.farewellText}
+                  {copy.farewellMiddle}<br /><br />{copy.farewellEnd}
                 </p>
               </div>
             </div>
 
-            <div className="w-full flex justify-center">
+            <div className="w-full flex flex-col items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={handleRestartAll}
                 className="airbrush-pill-btn w-full max-w-[280px] py-4 px-6 rounded-full text-[15px] font-medium tracking-wider text-slate-800 cursor-pointer whitespace-nowrap"
               >
-                [ {ROAMING_COPY.restartButton} ]
+                {copy.calm}
               </button>
+              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
             </div>
           </section>
         )}

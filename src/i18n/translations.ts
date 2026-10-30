@@ -80,9 +80,9 @@ const en = {
     "Leave your worries beyond gravity. This moment is yours."
   ],
   "ROAMING_COPY": {
-    "walkHint": "Follow the glowing arc to the Listening Stone. Tap the stone or your companion to sit.",
+    "walkHint": "Follow the gentle light to the Listening Stone. Choose Sit & Listen when you are close.",
     "sitButton": "Sit & Listen",
-    "standUpButton": "Resume Wandering",
+    "standUpButton": "Stand Up",
     "portalButton": "Choose a Planet",
     "portalPrompt": "Choose a Planet. Another little sky is waiting for you.",
     "inputPlaceholder": "What would you like to say to yourself today?",
@@ -153,13 +153,39 @@ const en = {
   "rockNav": "Find Listening Stone",
   "joystick": "Wandering Joystick",
   "joystickHint": "Drag the joystick to walk, or use arrow keys / WASD",
-  "stageHint": "Use the joystick to follow the glowing arc. Tap your companion to sit anywhere.",
+  "stageHint": "Use the joystick to approach the Listening Stone, then choose Sit & Listen above the joystick.",
   "spiritHint": "Purr~ Use the joystick to take me for a stroll!",
   "tapSpirit": "Tap the little spirit",
   "releaseBubble": "Release Your Bubble",
-  "restHint": "Stay here for a while. Choose Resume Wandering when you are ready to move.",
-  "stoneGuide": "Follow the glowing arc to the Listening Stone. You can also tap your companion to sit anywhere.",
-  "stoneArrived": "You are here. Tap the Listening Stone or your companion to sit and listen.",
+  "restHint": "Stay here for a while. Choose Stand Up when you are ready to move.",
+  "stoneGuide": "Follow the gentle light to the Listening Stone. A Sit & Listen button will appear when you are close.",
+  "stoneArrived": "You are here. Choose Sit & Listen whenever you feel ready to rest.",
+  "portalGuide": "Ready for another little sky? Follow the gentle light to the portal.",
+  "portalArrived": "You found it. Choose Enter Portal above the joystick to discover your next sky.",
+  "portalDiscovery": {
+    "enter": "Enter Portal",
+    "title": "Let the Stars Choose",
+    "intro": "There are {n} unvisited skies in this journey.",
+    "transmittingTitle": "Through a Little Starlight",
+    "transmitting": "The portal is opening. Your next sky is waiting...",
+    "lastPlanet": "Just one sky left. The portal will take you straight there...",
+    "destinations": "Unvisited planets",
+    "readyHint": "The planets drift clockwise. Let the stars choose your next stop.",
+    "spin": "Find My Next Planet",
+    "spinningButton": "Following the Stars...",
+    "spinning": "A little spin, a little surprise...",
+    "arriving": "Next stop: {planet}. Drifting there now...",
+    "departing": "On Our Way...",
+    "completeTitle": "You Have Wandered Every Sky",
+    "completeBody": "All four planets have been part of your journey. Linger here, or begin a new little orbit.",
+    "completeHint": "A new journey opens the other three skies again.",
+    "resetRoute": "Begin Another Journey"
+  },
+  "exitGuide": {
+    "title": "Leave Whenever You Like",
+    "body": "Your little escape can end whenever you need. Tap Leave for Now in the top-left corner to say goodbye.",
+    "confirm": "Got It"
+  },
   "planetGuide": {
     "title": "A Little Guide to Your Planet",
     "subtitle": "There is no hurry. Here is how to find a little quiet.",
@@ -170,14 +196,14 @@ const en = {
       },
       {
         "title": "Sit and listen",
-        "body": "Tap the stone when you are close, or tap your companion to sit anywhere. The view will ease in behind you."
+        "body": "Walk close to the stone, then choose Sit & Listen above the joystick. The view will ease in behind you."
       },
       {
         "title": "Let a thought float",
-        "body": "While sitting, write a little thought and let it drift away. Leave for Now appears after three seconds of rest."
+        "body": "After five seconds of music, leave a little thought and let it drift away. Stand Up when you feel ready."
       }
     ],
-    "controls": "You can also move with WASD or arrow keys. Choose Resume Wandering when you feel ready.",
+    "controls": "You can also move with WASD or arrow keys. After resting, choose Stand Up and follow the light to the portal.",
     "confirm": "Got It, Let’s Wander"
   }
 };
@@ -262,9 +288,9 @@ const zh: Copy = {
     "把烦恼留在引力场外，此刻只属于你自己。"
   ],
   "ROAMING_COPY": {
-    "walkHint": "沿着发光弧线去找聆听石吧，轻点石头或小精灵就能坐下。",
+    "walkHint": "跟着柔光去找聆听石吧，走近后点「坐下听歌」。",
     "sitButton": "坐下听歌",
-    "standUpButton": "继续漫步",
+    "standUpButton": "起身",
     "portalButton": "选择一颗星球",
     "portalPrompt": "去别的引力场看看吗？那里的风吹向另一片天空。",
     "inputPlaceholder": "写下一句现在的心情，让它化作星尘留在这里...",
@@ -335,13 +361,39 @@ const zh: Copy = {
   "rockNav": "寻找聆听石",
   "joystick": "漫步摇杆",
   "joystickHint": "拖动摇杆漫步，也可以使用方向键或 WASD",
-  "stageHint": "用摇杆跟着光弧走，轻点小精灵，在哪里都能坐下。",
+  "stageHint": "用摇杆走近聆听石，再点摇杆上方的「坐下听歌」。",
   "spiritHint": "呼噜呼噜～用摇杆带我走走吧！",
   "tapSpirit": "轻点小精灵",
   "releaseBubble": "放飞你的气泡",
-  "restHint": "就在这里歇一会儿吧。想走走时，点「继续漫步」。",
-  "stoneGuide": "跟着发光弧线去找聆听石吧，也可以轻点小精灵原地坐下。",
-  "stoneArrived": "到啦，轻点聆听石或小精灵，坐下听一会儿吧。",
+  "restHint": "就在这里歇一会儿吧。想走走时，点「起身」。",
+  "stoneGuide": "跟着柔光去找聆听石吧，走近后会出现「坐下听歌」。",
+  "stoneArrived": "到啦，想歇一会儿时，点「坐下听歌」。",
+  "portalGuide": "想看看另一片天空吗？跟着柔光，去传送门走走吧。",
+  "portalArrived": "到啦，点摇杆上方的「进入传送门」，让星光带你去下一站。",
+  "portalDiscovery": {
+    "enter": "进入传送门",
+    "title": "让星光，选下一站",
+    "intro": "这一程，还有 {n} 颗星球等你去看看。",
+    "transmittingTitle": "穿过一小片星光",
+    "transmitting": "传送门正在打开，下一片天空在等你……",
+    "lastPlanet": "只剩最后一片天空啦，这就带你直接过去……",
+    "destinations": "尚未到访的星球",
+    "readyHint": "星球正顺时针轻轻转动，让星光替你选一站吧。",
+    "spin": "摇一摇，去下一站",
+    "spinningButton": "跟着星光转一转……",
+    "spinning": "转呀转，下一站会是哪里呢……",
+    "arriving": "下一站：{planet}。这就轻轻飘过去……",
+    "departing": "出发啦……",
+    "completeTitle": "每片天空，都留下了你的足迹",
+    "completeBody": "四颗星球都去过啦。可以再待一会儿，也可以开启新一轮小小漫游。",
+    "completeHint": "开启新一轮，就能再遇见另外三片天空。",
+    "resetRoute": "再漫游一圈"
+  },
+  "exitGuide": {
+    "title": "想走的时候，随时出发",
+    "body": "之后你随时都可以离开。点左上角的「先去忙啦」，就能告别这颗星球。",
+    "confirm": "知道啦"
+  },
   "planetGuide": {
     "title": "漫游前，先看一眼",
     "subtitle": "不赶时间，先认识这颗小星球。",
@@ -352,14 +404,14 @@ const zh: Copy = {
       },
       {
         "title": "坐下听听",
-        "body": "走近后轻点石头，也可以轻点小精灵原地坐下。镜头会慢慢来到你的身后。"
+        "body": "走近聆听石，点摇杆上方的「坐下听歌」。镜头会慢慢来到你的身后。"
       },
       {
         "title": "放飞一点心事",
-        "body": "坐下后可以写几句话，让它们飘向星空。歇满三秒后，会出现「先去忙啦」。"
+        "body": "听五秒音乐后，可以写几句话，让它们飘向星空。歇好后，点「起身」。"
       }
     ],
-    "controls": "也可以用 WASD 或方向键移动。想走走时，点「继续漫步」。",
+    "controls": "也可以用 WASD 或方向键移动。歇好后点「起身」，柔光会带你去传送门。",
     "confirm": "知道啦，开始漫游"
   }
 };

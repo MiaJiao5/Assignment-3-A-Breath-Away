@@ -6,14 +6,12 @@ interface BottomPlanetControllerProps {
   disabled?: boolean;
   joystickInputRef: React.MutableRefObject<JoystickVector>;
   onWalkStateChange: (isWalking: boolean, facing?: 'left' | 'right') => void;
-  walkHint: string;
 }
 
 export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
   disabled = false,
   joystickInputRef,
   onWalkStateChange,
-  walkHint,
 }) => {
   const { copy } = useLanguage();
   const padRef = useRef<HTMLDivElement | null>(null);
@@ -152,7 +150,6 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
 
   return (
     <div className="joystick-panel" hidden={disabled}>
-      <p className="text-xs text-center leading-relaxed px-5" id="wandering-instructions">{walkHint}</p>
       <div
         ref={padRef}
         role="group"

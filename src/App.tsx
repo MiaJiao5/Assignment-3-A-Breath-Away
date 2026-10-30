@@ -2,7 +2,6 @@ import { LanguageToggle, useLanguage } from './i18n/LanguageContext';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   PLANETS,
-  PLANET_LIST,
   PlanetId,
   QuizChoice,
   calculateAssignedPlanet,
@@ -15,6 +14,8 @@ import {
 } from './components/ThreePlanetStage';
 import { BottomPlanetController } from './components/BottomPlanetController';
 import { PlanetGuide } from './components/PlanetGuide';
+import { ExitGuide } from './components/ExitGuide';
+import { PlanetDiscovery } from './components/PlanetDiscovery';
 
 type AppAct = 'intro' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
@@ -22,8 +23,7 @@ interface FloatingStardustItem {
   id: number;
   text: string;
   builtinIndex?: number;
-  leftPercent: number;
-  driftX: number;
+  topPercent: number;
 }
 
 const LOCAL_STORAGE_KEY = 'brief_roaming_user_stardust_v1';
@@ -36,6 +36,7 @@ export default function App() {
   const [quizStep, setQuizStep] = useState<number>(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizChoice[]>([]);
   const [planetId, setPlanetId] = useState<PlanetId>('OMEGA_01');
+  const [visitedPlanetIds, setVisitedPlanetIds] = useState<PlanetId[]>([]);
 
   // 第三幕 & 第四幕：星球漫步与小精灵状态
   const [spiritPose, setSpiritPose] = useState<SpiritPose>('idle');
@@ -43,10 +44,14 @@ export default function App() {
   const isRestingRef = useRef(false);
   const isGuideOpenRef = useRef(false);
   const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [isExitGuideOpen, setIsExitGuideOpen] = useState(false);
+  const isHelpOpen = isGuideOpen || isExitGuideOpen;
   const [canLeave, setCanLeave] = useState(false);
+  const [isMessageReady, setIsMessageReady] = useState(false);
+  const [hasRestedOnPlanet, setHasRestedOnPlanet] = useState(false);
+  const restActionRef = useRef<HTMLButtonElement>(null);
   const [spiritFacing, setSpiritFacing] = useState<'left' | 'right'>('right');
   const [isMusicPlaying, setIsMusicPlaying] = useState<boolean>(false);
-  const [whiteNoiseEnabled, setWhiteNoiseEnabled] = useState<boolean>(true);
 
   // 3D 星球控制器输入向量、当前球面经纬度、弹簧目标经纬度与速度 Ref
   const joystickInputRef = useRef<JoystickVector>({ x: 0, y: 0 });
@@ -90,11 +95,16 @@ export default function App() {
   const [isPortalModalOpen, setIsPortalModalOpen] = useState<boolean>(false);
 
   const activePlanet = { ...PLANETS[planetId], ...copy.planets[planetId] };
-  const planetList = PLANET_LIST.map(p => ({ ...p, ...copy.planets[p.id] }));
 
-  // 当进入坐下听歌状态（isMusicPlaying === true）时，每隔 3.5 秒从星球背后飘出一句星尘文字
+  useEffect(() => {
+    if (act !== 'roaming') return;
+    setVisitedPlanetIds(previous => previous.includes(planetId) ? previous : [...previous, planetId]);
+  }, [act, planetId]);
+
+  // Leave space between slow, horizontal thoughts while listening.
   useEffect(() => {
     if (act !== 'roaming' || !isMusicPlaying) {
+      setFloatingStardust([]);
       return;
     }
 
@@ -111,20 +121,18 @@ export default function App() {
       }
 
       const id = Date.now() + Math.random();
-      const leftPercent = 12 + Math.random() * 44;
-      const driftX = (Math.random() - 0.5) * 32;
+      const topPercent = (cursor % 2) * 36;
 
-      setFloatingStardust((prev) => [...prev.slice(-5), { id, text, builtinIndex, leftPercent, driftX }]);
+      setFloatingStardust((prev) => [...prev.slice(-3), { id, text, builtinIndex, topPercent }]);
     };
 
     const initialTimer = window.setTimeout(() => {
       spawnStardust();
-    }, 450);
+    }, 3000);
 
-    // 每隔 3.5 秒缓缓向上飘出半透明治愈文字
     const interval = window.setInterval(() => {
       spawnStardust();
-    }, 3500);
+    }, 10000);
 
     return () => {
       clearTimeout(initialTimer);
@@ -170,6 +178,7 @@ export default function App() {
     soundEngine.playSoftClick(40);
     setQuizAnswers([]);
     setQuizStep(0);
+    setVisitedPlanetIds([]);
     setAct('quiz');
   };
 
@@ -206,6 +215,7 @@ export default function App() {
       joystickInputRef.current = { x: 0, y: 0 };
       setSpiritPose('idle');
       setIsMusicPlaying(false);
+      setHasRestedOnPlanet(false);
       isGuideOpenRef.current = true;
       setIsGuideOpen(true);
       setAct('roaming');
@@ -214,9 +224,9 @@ export default function App() {
   }, [act]);
 
   useEffect(() => {
-    setCanLeave(false);
+    setIsMessageReady(false);
     if (act !== 'roaming' || spiritPose !== 'sitting') return;
-    const timer = window.setTimeout(() => setCanLeave(true), 3000);
+    const timer = window.setTimeout(() => setIsMessageReady(true), 5000);
     return () => window.clearTimeout(timer);
   }, [act, spiritPose]);
 
@@ -243,13 +253,18 @@ export default function App() {
   };
 
   const handleSitAndListen = () => {
-    if (isGuideOpenRef.current) return;
-    setCanLeave(false);
+    if (isGuideOpenRef.current || isPortalModalOpen || (!isRestingRef.current && !isNearListeningRock)) return;
     soundEngine.playSoftClick(90);
     stopMovement();
 
     if (isRestingRef.current) {
       isRestingRef.current = false;
+      setHasRestedOnPlanet(true);
+      if (!canLeave) {
+        setCanLeave(true);
+        isGuideOpenRef.current = true;
+        setIsExitGuideOpen(true);
+      }
       setSpiritPose('idle');
       setIsMusicPlaying(false);
       soundEngine.stopPlanetMusicImmediate();
@@ -267,7 +282,7 @@ export default function App() {
   // 树洞放飞心情（含空输入错误处理）
   const handleReleaseMood = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isRestingRef.current || act !== 'roaming') return;
+    if (!isRestingRef.current || !isMessageReady || act !== 'roaming') return;
     const trimmed = moodInput;
 
     if (!trimmed.trim()) {
@@ -299,18 +314,17 @@ export default function App() {
       {
         id,
         text: trimmed,
-        leftPercent: 18 + Math.random() * 38,
-        driftX: (Math.random() - 0.5) * 26,
+        topPercent: (quoteCursorRef.current++ % 2) * 36,
       },
     ]);
   };
 
   // 通过【🌀 传送门】切换体验另外 3 个星球
   const handleSwitchPlanet = (nextPlanetId: PlanetId) => {
-    if (isRestingRef.current) return;
-    soundEngine.playWarpTransition();
+    if (isRestingRef.current || nextPlanetId === planetId || visitedPlanetIds.includes(nextPlanetId)) return;
     setIsPortalModalOpen(false);
     setPlanetId(nextPlanetId);
+    setHasRestedOnPlanet(false);
     stopMovement();
     setSpiritPose('idle');
     isGuideOpenRef.current = true;
@@ -323,10 +337,11 @@ export default function App() {
 
   // 点击右上角 [ 👋 先去忙啦 ] 进入告别闭环
   const handleLeaveToFarewell = () => {
-    if (!canLeave || act !== 'roaming' || !isRestingRef.current) return;
+    if (!canLeave || act !== 'roaming') return;
     isRestingRef.current = false;
     isGuideOpenRef.current = false;
     setIsGuideOpen(false);
+    setIsExitGuideOpen(false);
     stopMovement();
     soundEngine.playSoftClick(20);
     soundEngine.fadeOutAndStop(1.4);
@@ -343,12 +358,15 @@ export default function App() {
     isRestingRef.current = false;
     isGuideOpenRef.current = false;
     setIsGuideOpen(false);
+    setIsExitGuideOpen(false);
+    setCanLeave(false);
     stopMovement();
     soundEngine.playSoftClick(60);
     soundEngine.stopPlanetMusicImmediate();
     joystickInputRef.current = { x: 0, y: 0 };
     setQuizAnswers([]);
     setQuizStep(0);
+    setVisitedPlanetIds([]);
     setFloatingStardust([]);
     setFeedback(null);
     setOverheadBubble(null);
@@ -357,26 +375,26 @@ export default function App() {
     setAct('intro');
   };
 
-  // 静音与环境白噪音切换
-  const handleToggleWhiteNoise = () => {
-    const next = !whiteNoiseEnabled;
-    setWhiteNoiseEnabled(next);
-    soundEngine.setWhiteNoiseEnabled(next);
-    soundEngine.playSoftClick(50);
-  };
-
   const handleNearLandmarkChange = useCallback((nearRock: boolean, nearPortal: boolean) => {
     setIsNearListeningRock(nearRock);
     setIsNearPortal(nearPortal);
   }, []);
 
+  const handleEnterPortal = () => {
+    if (isRestingRef.current || isGuideOpenRef.current || !isNearPortal || isPortalModalOpen) return;
+    stopMovement();
+    setSpiritPose('idle');
+    soundEngine.playWarpTransition();
+    setIsPortalModalOpen(true);
+  };
+
   const handleSelect3DLandmark = (landmark: 'rock' | 'portal') => {
     if (isRestingRef.current || isGuideOpenRef.current) return;
     if (landmark === 'rock') {
-      if (isNearListeningRock) handleSitAndListen();
+      if (isNearListeningRock) restActionRef.current?.focus();
       else triggerOverheadBubble('', false, 3000, 'stoneGuide');
     } else if (isNearPortal) {
-      setIsPortalModalOpen(true);
+      restActionRef.current?.focus();
     }
   };
 
@@ -497,7 +515,12 @@ export default function App() {
 
         {/* ================= 3. 顶部轻量状态栏与常驻告别按钮 ================= */}
         <LanguageToggle />
-        <header inert={isGuideOpen} className={`app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1 ${act === 'roaming' ? 'planet-header' : ''}`}>
+        {act === 'roaming' && canLeave && (
+          <button type="button" onClick={handleLeaveToFarewell} className="leave-control">
+            {ROAMING_COPY.leaveButton}
+          </button>
+        )}
+        <header inert={isHelpOpen || isPortalModalOpen} className={`app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1 ${act === 'roaming' ? 'planet-header' : ''}`}>
           <div className="flex items-center gap-2">
             <span
               className="text-xs font-medium tracking-widest opacity-85"
@@ -507,16 +530,6 @@ export default function App() {
             </span>
           </div>
 
-            {act === 'roaming' && spiritPose === 'sitting' && canLeave && (
-              <button
-                type="button"
-                onClick={handleLeaveToFarewell}
-                style={softPillStyle}
-                className="absolute right-5 top-4 px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
-              >
-                {ROAMING_COPY.leaveButton}
-              </button>
-            )}
         </header>
 
         {/* ================= 第一幕：开场引导页 ================= */}
@@ -648,203 +661,122 @@ export default function App() {
 
         {/* ================= 第三幕 & 第四幕：3D 星球漫步、手势滑动、底部控制器、坐下听歌与星尘树洞 ================= */}
         {act === 'roaming' && (
-          <section inert={isGuideOpen} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
-            {/* 顶部星球氛围副标题与听歌白噪音控制 */}
+          <section inert={isHelpOpen || isPortalModalOpen} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
+            {/* Planet interaction instructions */}
             <div className="px-5 pt-0.5 text-center z-20">
               <p
-                className="text-xs tracking-wider opacity-85"
+                id="wandering-instructions"
+                role="status"
+                className="text-xs leading-relaxed opacity-85"
                 style={{ color: currentColors.textSecondary }}
               >
-                {activePlanet.subtitle}
+                {spiritPose === 'sitting' ? copy.restHint : hasRestedOnPlanet ? (isNearPortal ? copy.portalArrived : copy.portalGuide) : (isNearListeningRock ? copy.stoneArrived : copy.stoneGuide)}
               </p>
 
-              {isMusicPlaying && (
-                <div
-                  className="mt-1.5 inline-flex items-center gap-2 px-3.5 py-1 rounded-full"
-                  style={softPillStyle}
-                >
-                  <span className="text-[11px] text-slate-700 font-medium">
-                    ♪ {copy.playing}: {activePlanet.name}
-                  </span>
-                  <span className="text-slate-400">·</span>
-                  <button
-                    type="button"
-                    onClick={handleToggleWhiteNoise}
-                    className="text-[11px] font-medium text-slate-700 underline decoration-dotted cursor-pointer whitespace-nowrap"
-                  >
-                    {whiteNoiseEnabled
-                      ? `🌿 ${activePlanet.noiseLabel}: ${copy.on}`
-                      : `🌿 ${activePlanet.noiseLabel}: ${copy.off}`}
-                  </button>
-                </div>
-              )}
             </div>
 
-            {/* 星球背后的半透明柔光星尘文字飘出层（每隔 3.5 秒向上飘出） */}
-            <div className="pointer-events-none absolute inset-x-0 top-16 bottom-60 z-10 overflow-hidden">
-              {floatingStardust.map((item) => (
-                <div
-                  key={item.id}
-                  className="animate-stardust-float absolute bottom-4 max-w-[250px] px-4 py-2 rounded-full"
-                  style={
-                    {
-                      left: `${item.leftPercent}%`,
-                      '--drift-x': `${item.driftX}px`,
-                      background:
-                        'radial-gradient(circle, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.35) 82%, transparent 100%)',
-                      boxShadow: '0 0 22px 6px rgba(255,255,255,0.52)',
-                    } as React.CSSProperties
-                  }
-                >
-                  <p className="text-xs text-slate-700 font-medium leading-relaxed text-center whitespace-pre-wrap break-words">
-                    {item.builtinIndex === undefined ? item.text : BUILTIN_STARDUST_QUOTES[item.builtinIndex]}
-                  </p>
-                </div>
-              ))}
-            </div>
-
-            {/* 中央 3D 星球与毛茸茸白色小精灵互动舞台（绑定 Touch Swipe 与 Mouse Drag 丝滑旋转手势） */}
+            {/* Central 3D stage and the sky above the companion */}
             <div
               className="planet-stage relative flex-1 min-h-[250px] flex flex-col items-center justify-center z-20 touch-none"
             >
+              <div className="stardust-layer pointer-events-none" aria-hidden="true">
+                {floatingStardust.map((item) => (
+                  <div
+                    key={item.id}
+                    className="animate-stardust-float absolute left-0 mt-2 max-w-[280px] px-4 py-1.5 rounded-full"
+                    onAnimationEnd={() => setFloatingStardust(prev => prev.filter(quote => quote.id !== item.id))}
+                    style={
+                      {
+                        top: `${item.topPercent}%`,
+                        background:
+                          'radial-gradient(circle, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.35) 82%, transparent 100%)',
+                        boxShadow: '0 0 22px 6px rgba(255,255,255,0.52)',
+                      } as React.CSSProperties
+                    }
+                  >
+                    <p className="text-xs text-slate-700 font-medium leading-relaxed text-center whitespace-pre-wrap break-words">
+                      {item.builtinIndex === undefined ? item.text : BUILTIN_STARDUST_QUOTES[item.builtinIndex]}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
               <ThreePlanetStage
                 planetId={planetId}
                 pose={spiritPose}
                 isMusicPlaying={isMusicPlaying}
-                interactionEnabled={!isGuideOpen && !isPortalModalOpen}
+                interactionEnabled={!isHelpOpen && !isPortalModalOpen}
+                guideToPortal={hasRestedOnPlanet}
                 joystickInputRef={joystickInputRef}
                 planetCoordsRef={planetCoordsRef}
                 targetCoordsRef={targetCoordsRef}
                 springVelocityRef={springVelocityRef}
                 overheadBubble={overheadBubble ? { ...overheadBubble, text: overheadBubble.messageKey === 'emptyErrorBubble' ? ROAMING_COPY.emptyErrorBubble : overheadBubble.messageKey ? copy[overheadBubble.messageKey] : overheadBubble.text } : null}
                 onNearLandmarkChange={handleNearLandmarkChange}
-                onTapSpirit={() => {
-                  if (!isRestingRef.current) handleSitAndListen();
-                }}
                 onSelectLandmark={handleSelect3DLandmark}
               />
 
-              {/* 原地坐下或继续漫步 */}
-              {spiritPose === 'sitting' && (
-                <div className="planet-actions relative z-30 -mt-3 mb-1 flex items-center justify-center gap-3">
-                  <button
-                    type="button"
-                    onClick={handleSitAndListen}
-                    style={softPillStyle}
-                    className={`px-4 py-2 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap transition-transform duration-300 ${
-                      isNearListeningRock || isMusicPlaying
-                        ? 'scale-105 ring-2 ring-white'
-                        : 'opacity-90'
-                    }`}
-                  >
-                    [ {ROAMING_COPY.standUpButton} ]
-                  </button>
-                </div>
-              )}
             </div>
 
             <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? copy[feedback] : null}</p>
             {/* 底部可折叠控制器与树洞倾诉栏 (Collapsible Bottom Control Dock) */}
             <div className="relative z-30 px-4 pb-4 flex flex-col items-center">
               <div className="w-full flex flex-col gap-2">
+                <div className="rest-action-slot">
+                  <button
+                    ref={restActionRef}
+                    type="button"
+                    onClick={spiritPose !== 'sitting' && isNearPortal ? handleEnterPortal : handleSitAndListen}
+                    style={softPillStyle}
+                    className="rest-action flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-slate-800 cursor-pointer"
+                    data-visible={!isHelpOpen && !isPortalModalOpen && (spiritPose === 'sitting' || isNearListeningRock || isNearPortal)}
+                    aria-hidden={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !isNearPortal)}
+                    disabled={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !isNearPortal)}
+                  >
+                    <span aria-hidden="true">{spiritPose === 'sitting' ? '🐾' : isNearPortal ? '🌀' : '🪑'}</span>
+                    <span>[ {spiritPose === 'sitting' ? ROAMING_COPY.standUpButton : isNearPortal ? copy.portalDiscovery.enter : ROAMING_COPY.sitButton} ]</span>
+                  </button>
+                </div>
                 <BottomPlanetController
-                  disabled={spiritPose === 'sitting' || isGuideOpen || isPortalModalOpen}
+                  disabled={spiritPose === 'sitting' || isHelpOpen || isPortalModalOpen}
                   joystickInputRef={joystickInputRef}
                   onWalkStateChange={handleWalkStateChange}
-                  walkHint={isNearListeningRock ? copy.stoneArrived : copy.stoneGuide}
                 />
                 {spiritPose === 'sitting' && (
-                  <>
-                    <h2 className="text-xs text-center">{copy.inputTitle}</h2>
-                    {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
-                    <form aria-label={copy.releaseBubble}
-                      onSubmit={handleReleaseMood}
-                      className="flex items-center gap-2 p-1.5 rounded-full"
-                      style={softPillStyle}
-                    >
-                      <input
-                        type="text"
-                        value={moodInput}
-                        onChange={(e) => setMoodInput(e.target.value)}
-                        maxLength={60}
-                        placeholder={ROAMING_COPY.inputPlaceholder}
-                        aria-label={copy.inputTitle}
-                        className="min-w-0 flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
-                      />
-                      <button
-                        type="submit"
-                        style={softPillStyle}
-                        className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
-                      >
-                        [ {ROAMING_COPY.releaseButton} ]
-                      </button>
-                    </form>
-                  </>
+                  <div className="message-slot">
+                    {isMessageReady && (
+                      <div className="message-panel flex flex-col gap-2">
+                        <h2 className="text-xs text-center">{copy.inputTitle}</h2>
+                        {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
+                        <form aria-label={copy.releaseBubble}
+                          onSubmit={handleReleaseMood}
+                          className="flex w-full min-w-0 items-center gap-2 p-1.5 rounded-full"
+                          style={softPillStyle}
+                        >
+                          <input
+                            type="text"
+                            value={moodInput}
+                            onChange={(e) => setMoodInput(e.target.value)}
+                            maxLength={60}
+                            placeholder={ROAMING_COPY.inputPlaceholder}
+                            aria-label={copy.inputTitle}
+                            className="w-0 min-w-0 flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
+                          />
+                          <button
+                            type="submit"
+                            style={softPillStyle}
+                            className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
+                          >
+                            [ {ROAMING_COPY.releaseButton} ]
+                          </button>
+                        </form>
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
 
-            {isPortalModalOpen && (
-              <div
-                onClick={() => setIsPortalModalOpen(false)}
-                className="absolute inset-0 z-40 flex items-center justify-center px-6"
-                style={{ background: 'rgba(255, 255, 255, 0.48)' }}
-              >
-                <div
-                  role="dialog" aria-label={ROAMING_COPY.portalButton}
-                  onKeyDown={(e) => { if (e.key === 'Escape') setIsPortalModalOpen(false); }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="planet-picker w-full max-w-[340px] p-6 rounded-[32px] text-center text-slate-800"
-                  style={{
-                    background:
-                      'radial-gradient(120% 120% at 50% 20%, rgba(255,255,255,0.96) 0%, rgba(255,248,252,0.9) 100%)',
-                    boxShadow:
-                      '0 20px 55px -8px rgba(70, 55, 100, 0.25), 0 0 36px 8px rgba(255,255,255,0.8)',
-                  }}
-                >
-                  <p className="text-sm leading-relaxed font-medium mb-4">
-                    {ROAMING_COPY.portalPrompt}
-                  </p>
-
-                  <div className="flex flex-col gap-2.5">
-                    {planetList.map((p) => {
-                      const isCurrent = p.id === planetId;
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onClick={() => handleSwitchPlanet(p.id)}
-                          style={softPillStyle}
-                          className={`w-full px-4 py-3 rounded-2xl flex items-center justify-between text-left cursor-pointer ${
-                            isCurrent ? 'ring-2 ring-amber-300' : ''
-                          }`}
-                        >
-                          <div>
-                            <div className="text-xs font-semibold text-slate-800">
-                              {p.fullName}
-                            </div>
-                            <div className="text-[11px] text-slate-600 mt-0.5">
-                              {p.subtitle}
-                            </div>
-                          </div>
-                          <span className="text-xs font-medium text-slate-700 whitespace-nowrap ml-2">
-                            {isCurrent ? copy.current : copy.visit}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => setIsPortalModalOpen(false)}
-                    className="mt-4 text-xs text-slate-600 hover:text-slate-900 py-1.5 px-4 cursor-pointer"
-                  >
-                    {copy.stay}
-                  </button>
-                </div>
-              </div>
-            )}
           </section>
         )}
 
@@ -881,15 +813,35 @@ export default function App() {
               >
                 {copy.calm}
               </button>
-              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
+              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
             </div>
           </section>
+        )}
+        {act === 'roaming' && isPortalModalOpen && (
+          <PlanetDiscovery
+            key={`${planetId}:${visitedPlanetIds.join(',')}`}
+            currentPlanetId={planetId}
+            visitedPlanetIds={visitedPlanetIds}
+            onClose={() => {
+              setIsPortalModalOpen(false);
+              requestAnimationFrame(() => restActionRef.current?.focus());
+            }}
+            onTravel={handleSwitchPlanet}
+            onResetRoute={() => { soundEngine.playWarpTransition(); setVisitedPlanetIds([planetId]); }}
+          />
         )}
         {act === 'roaming' && isGuideOpen && (
           <PlanetGuide onConfirm={() => {
             stopMovement();
             isGuideOpenRef.current = false;
             setIsGuideOpen(false);
+            requestAnimationFrame(() => document.querySelector<HTMLElement>('.wandering-joystick')?.focus());
+          }} />
+        )}
+        {act === 'roaming' && isExitGuideOpen && (
+          <ExitGuide onConfirm={() => {
+            isGuideOpenRef.current = false;
+            setIsExitGuideOpen(false);
             requestAnimationFrame(() => document.querySelector<HTMLElement>('.wandering-joystick')?.focus());
           }} />
         )}

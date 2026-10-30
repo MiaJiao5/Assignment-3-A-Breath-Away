@@ -7,7 +7,7 @@ export interface OverheadBubbleData {
   id: number;
   text: string;
   isError?: boolean;
-  messageKey?: 'emptyErrorBubble' | 'spiritHint';
+  messageKey?: 'emptyErrorBubble' | 'spiritHint' | 'stoneGuide';
 }
 
 interface FluffySpiritProps {

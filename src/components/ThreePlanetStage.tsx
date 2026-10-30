@@ -14,6 +14,7 @@ interface ThreePlanetStageProps {
   planetId: PlanetId;
   pose: SpiritPose;
   isMusicPlaying: boolean;
+  interactionEnabled?: boolean;
   joystickInputRef: React.MutableRefObject<JoystickVector>;
   planetCoordsRef: React.MutableRefObject<{ lon: number; lat: number }>;
   targetCoordsRef: React.MutableRefObject<{ lon: number; lat: number }>;
@@ -28,10 +29,9 @@ interface ThreePlanetStageProps {
 const _vec3A = new THREE.Vector3();
 const _vec3B = new THREE.Vector3();
 const _quatA = new THREE.Quaternion();
-const _quatB = new THREE.Quaternion();
-const _eulerA = new THREE.Euler();
 const _mat4 = new THREE.Matrix4();
 const _color = new THREE.Color();
+const _surfaceNorth = new THREE.Vector3();
 
 // 地标在星球球面上的经纬度坐标 (单位：弧度)
 export const ROCK_COORDS = { lon: 0.68, lat: 0.08 }; // 右前方【🪑 聆听石】
@@ -124,15 +124,19 @@ function placeOnSphere(obj: THREE.Object3D, radius: number, lon: number, lat: nu
   const nz = Math.sin(lat);
 
   obj.position.set(nx * radius, ny * radius, nz * radius);
-  _vec3A.set(0, 1, 0);
-  _vec3B.set(nx, ny, nz).normalize();
-  obj.quaternion.setFromUnitVectors(_vec3A, _vec3B);
+  // An orthonormal tangent frame keeps feet, shadow and heading on the surface.
+  _vec3A.set(Math.cos(lon), -Math.sin(lon), 0);
+  _vec3B.set(nx, ny, nz);
+  _surfaceNorth.set(-Math.sin(lon) * Math.sin(lat), -Math.cos(lon) * Math.sin(lat), cosLat);
+  _mat4.makeBasis(_vec3A, _vec3B, _surfaceNorth);
+  obj.quaternion.setFromRotationMatrix(_mat4);
 }
 
 export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
   planetId,
   pose,
   isMusicPlaying,
+  interactionEnabled = true,
   joystickInputRef,
   planetCoordsRef,
   targetCoordsRef,
@@ -144,12 +148,14 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 }) => {
   const { copy } = useLanguage();
   const mountRef = useRef<HTMLDivElement | null>(null);
+  const hasRestedRef = useRef(false);
 
   // 使用 Ref 同步最新 React 状态，避免重建 WebGL 上下文
   const stateRef = useRef({
     planetId,
     pose,
     isMusicPlaying,
+    interactionEnabled,
     onNearLandmarkChange,
     onTapSpirit,
     onSelectLandmark,
@@ -160,11 +166,12 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       planetId,
       pose,
       isMusicPlaying,
+      interactionEnabled,
       onNearLandmarkChange,
       onTapSpirit,
       onSelectLandmark,
     };
-  }, [planetId, pose, isMusicPlaying, onNearLandmarkChange, onTapSpirit, onSelectLandmark]);
+  }, [planetId, pose, isMusicPlaying, interactionEnabled, onNearLandmarkChange, onTapSpirit, onSelectLandmark]);
 
   // 存储星球材质与灯光引用以便切换星球时平滑更新色彩
   const sceneRefs = useRef<{
@@ -185,6 +192,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 
   // 当切换星球时更新 3D 星球贴图与光晕颜色
   useEffect(() => {
+    hasRestedRef.current = false;
     const { planetMat, haloMat, renderer } = sceneRefs.current;
     if (!planetMat || !haloMat || !renderer) return;
 
@@ -220,8 +228,18 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const scene = new THREE.Scene();
 
     const camera = new THREE.PerspectiveCamera(42, width / height, 0.1, 100);
-    camera.position.set(0, 2.35, 5.15);
-    camera.lookAt(0, 0.35, 0);
+    const wanderingPosition = new THREE.Vector3(0, 4.4, 5.7);
+    const wanderingFocus = new THREE.Vector3(0, 0.18, 0);
+    const restingPosition = new THREE.Vector3();
+    const restingFocus = new THREE.Vector3();
+    const spiritWorld = new THREE.Vector3();
+    const surfaceNormal = new THREE.Vector3();
+    const surfaceForward = new THREE.Vector3();
+    const worldUp = new THREE.Vector3(0, 1, 0);
+    const cameraFocus = wanderingFocus.clone();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    camera.position.copy(wanderingPosition);
+    camera.lookAt(cameraFocus);
 
     const renderer = new THREE.WebGLRenderer({
       antialias: !isSoftwareGl,
@@ -280,6 +298,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     // =========================================================================
     const PLANET_RADIUS = 1.68;
     const planetPivot = new THREE.Group();
+    planetPivot.name = 'planet-surface';
     planetPivot.position.set(0, -0.82, 0);
     scene.add(planetPivot);
 
@@ -434,7 +453,47 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     rockGroup.add(rightCrystal);
 
     placeOnSphere(rockGroup, PLANET_RADIUS, ROCK_COORDS.lon, ROCK_COORDS.lat);
+    rockGroup.name = 'listening-stone';
     planetPivot.add(rockGroup);
+
+    // A luminous arch and a curved trail invite the first walk to the stone.
+    const guidance = new THREE.Group();
+    guidance.name = 'listening-guide';
+    planetPivot.add(guidance);
+    const guideMaterial = new THREE.MeshBasicMaterial({ color: 0xdba24b, transparent: true, opacity: 1 });
+    const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffe6a4, transparent: true, opacity: 0.24, depthWrite: false });
+    const guideCore = new THREE.Mesh(new THREE.BufferGeometry(), guideMaterial);
+    const guideGlow = new THREE.Mesh(new THREE.BufferGeometry(), glowMaterial);
+    guidance.add(guideCore, guideGlow);
+    const guideSpark = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 8), guideMaterial);
+    guidance.add(guideSpark);
+    const beacon = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.015, 8, 40, Math.PI), guideMaterial);
+    beacon.name = 'listening-beacon';
+    beacon.position.y = 0.08;
+    rockGroup.add(beacon);
+    const arrivalRing = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.012, 8, 40), guideMaterial);
+    arrivalRing.rotation.x = -Math.PI / 2;
+    arrivalRing.position.y = 0.025;
+    rockGroup.add(arrivalRing);
+    let guideCurve: THREE.CatmullRomCurve3 | null = null;
+    const guideStart = new THREE.Vector3(Infinity, Infinity, Infinity);
+    const guideEnd = rockGroup.position.clone().normalize();
+
+    const updateGuide = (start: THREE.Vector3) => {
+      guideStart.copy(start);
+      const from = start.clone().normalize();
+      const arcRotation = new THREE.Quaternion().setFromUnitVectors(from, guideEnd);
+      const points = Array.from({ length: 21 }, (_, i) => {
+        const t = i / 20;
+        const rotation = new THREE.Quaternion().slerp(arcRotation, t);
+        return from.clone().applyQuaternion(rotation).multiplyScalar(PLANET_RADIUS + 0.06 + Math.sin(Math.PI * t) * 0.3);
+      });
+      guideCurve = new THREE.CatmullRomCurve3(points);
+      guideCore.geometry.dispose();
+      guideGlow.geometry.dispose();
+      guideCore.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.014, 5, false);
+      guideGlow.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.045, 5, false);
+    };
 
     // =========================================================================
     // 6. 地标 2：【🌀 引力传送门 (Gravity Portal Arch)】 (6部分复合模型)
@@ -509,9 +568,27 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     // 7. 3D 毛茸茸的白色小精灵 (Fluffy White Spirit) (10部分复合模型)
     // =========================================================================
     const spiritRoot = new THREE.Group();
-    const SPIRIT_BASE_Y = PLANET_RADIUS - 0.82;
-    spiritRoot.position.set(0, SPIRIT_BASE_Y, 0);
-    scene.add(spiritRoot);
+    spiritRoot.name = 'spirit-surface-root';
+    placeOnSphere(spiritRoot, PLANET_RADIUS, planetCoordsRef.current.lon, planetCoordsRef.current.lat);
+    planetPivot.add(spiritRoot);
+    // Parallel-transport the tangent frame instead of clamping geographic angles.
+    // This remains continuous across poles and complete trips around the sphere.
+    const walkingFrame = spiritRoot.quaternion.clone();
+    const initialFrameInverse = walkingFrame.clone().invert();
+    const previousWalkCoords = { ...planetCoordsRef.current };
+    const travelAxis = new THREE.Vector3();
+    const travelStep = new THREE.Quaternion();
+    const counterStep = new THREE.Quaternion();
+    const planetStep = new THREE.Quaternion();
+    const frameInverse = new THREE.Quaternion();
+    const followRotation = new THREE.Quaternion();
+    const wanderingOffset = wanderingPosition.clone().sub(planetPivot.position);
+    const wanderingFocusOffset = wanderingFocus.clone().sub(planetPivot.position);
+    const followPosition = new THREE.Vector3();
+    const followFocus = new THREE.Vector3();
+    const followUp = new THREE.Vector3();
+    const rockNormal = rockGroup.position.clone().normalize();
+    const portalNormal = portalGroup.position.clone().normalize();
 
     const spiritShadow = new THREE.Mesh(
       new THREE.PlaneGeometry(0.56, 0.56),
@@ -524,11 +601,13 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         polygonOffsetUnits: -2,
       })
     );
+    spiritShadow.name = 'spirit-contact-shadow';
     spiritShadow.rotation.x = -Math.PI / 2;
     spiritShadow.position.y = 0.015;
     spiritRoot.add(spiritShadow);
 
     const spiritBodyPivot = new THREE.Group();
+    spiritBodyPivot.name = 'spirit-body';
     spiritRoot.add(spiritBodyPivot);
 
     const fluffyWhiteMat = new THREE.MeshStandardMaterial({
@@ -601,11 +680,13 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     spiritBodyPivot.add(rightArm);
 
     const leftFoot = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), fluffyWhiteMat);
+    leftFoot.name = 'left-foot';
     leftFoot.scale.set(0.95, 0.65, 1.25);
     leftFoot.position.set(-0.095, 0.045, 0.05);
     spiritBodyPivot.add(leftFoot);
 
     const rightFoot = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), fluffyWhiteMat);
+    rightFoot.name = 'right-foot';
     rightFoot.scale.set(0.95, 0.65, 1.25);
     rightFoot.position.set(0.095, 0.045, 0.05);
     spiritBodyPivot.add(rightFoot);
@@ -639,6 +720,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     };
 
     const handleCanvasClick = (ev: MouseEvent) => {
+      if (!stateRef.current.interactionEnabled || stateRef.current.pose === 'sitting') return;
       // 如果手指/鼠标滑动距离超过 7px，视为旋转滑动手势，不触发点击
       const moveDist = Math.hypot(
         ev.clientX - pointerDownPos.x,
@@ -654,7 +736,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 
       const spiritHits = raycaster.intersectObjects(spiritBodyPivot.children, false);
       if (spiritHits.length > 0) {
-        sceneRefs.current.hopImpulse = 1.0;
         stateRef.current.onTapSpirit();
         return;
       }
@@ -710,48 +791,47 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const rawDt = clock.getDelta();
       const dt = Math.min(rawDt, 0.05);
       const elapsed = clock.getElapsedTime();
+      const isResting = stateRef.current.pose === 'sitting';
+      const movementLocked = isResting || !stateRef.current.interactionEnabled;
 
       const joy = joystickInputRef.current;
       const joyMag = Math.min(1, Math.hypot(joy.x, joy.y));
-      const isJoystickActive = joyMag > 0.06 && stateRef.current.pose !== 'sitting';
+      const isJoystickActive = joyMag > 0.06 && !movementLocked;
 
       // 1. 当持续摇杆或方向键按下时，平滑推进 targetCoordsRef
       if (isJoystickActive) {
         const walkSpeed = 1.25;
         targetCoordsRef.current.lon += joy.x * walkSpeed * dt;
-        targetCoordsRef.current.lat = THREE.MathUtils.clamp(
-          targetCoordsRef.current.lat + joy.y * walkSpeed * 0.75 * dt,
-          -0.62,
-          0.62
-        );
+        targetCoordsRef.current.lat += joy.y * walkSpeed * 0.75 * dt;
       }
 
       // 2. 弹簧缓动插值 (Spring-like Interpolation)：将 planetCoordsRef 平滑驱向 targetCoordsRef
       const stiffness = 115; // 弹簧刚度
       const damping = 16; // 阻尼系数
 
-      const diffLon = targetCoordsRef.current.lon - planetCoordsRef.current.lon;
-      const diffLat = targetCoordsRef.current.lat - planetCoordsRef.current.lat;
+      if (movementLocked) {
+        targetCoordsRef.current = { ...planetCoordsRef.current };
+        springVelocityRef.current = { lon: 0, lat: 0 };
+      } else {
+        const diffLon = targetCoordsRef.current.lon - planetCoordsRef.current.lon;
+        const diffLat = targetCoordsRef.current.lat - planetCoordsRef.current.lat;
 
-      const accelLon = diffLon * stiffness - springVelocityRef.current.lon * damping;
-      const accelLat = diffLat * stiffness - springVelocityRef.current.lat * damping;
+        const accelLon = diffLon * stiffness - springVelocityRef.current.lon * damping;
+        const accelLat = diffLat * stiffness - springVelocityRef.current.lat * damping;
 
-      springVelocityRef.current.lon += accelLon * dt;
-      springVelocityRef.current.lat += accelLat * dt;
+        springVelocityRef.current.lon += accelLon * dt;
+        springVelocityRef.current.lat += accelLat * dt;
 
-      planetCoordsRef.current.lon += springVelocityRef.current.lon * dt;
-      planetCoordsRef.current.lat = THREE.MathUtils.clamp(
-        planetCoordsRef.current.lat + springVelocityRef.current.lat * dt,
-        -0.62,
-        0.62
-      );
+        planetCoordsRef.current.lon += springVelocityRef.current.lon * dt;
+        planetCoordsRef.current.lat += springVelocityRef.current.lat * dt;
+      }
 
       const springSpeed = Math.hypot(
         springVelocityRef.current.lon,
         springVelocityRef.current.lat
       );
       const isMoving =
-        (isJoystickActive || springSpeed > 0.045) && stateRef.current.pose !== 'sitting';
+        (isJoystickActive || springSpeed > 0.045) && !movementLocked;
 
       if (isMoving) {
         const moveVx = isJoystickActive ? joy.x : springVelocityRef.current.lon;
@@ -760,29 +840,58 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
           targetYaw = Math.atan2(moveVx, moveVy || 0.001);
         }
         walkPhase += dt * (7.2 + Math.min(1.4, Math.max(joyMag, springSpeed * 0.85)) * 4.5);
-      } else {
+      } else if (!isResting) {
         targetYaw = THREE.MathUtils.damp(targetYaw, 0, 3.5, dt);
       }
 
-      // 将平滑更新后的 planetCoordsRef 应用到星球四元数姿态
-      _eulerA.set(
-        planetCoordsRef.current.lat,
-        0,
-        planetCoordsRef.current.lon,
-        'ZXY'
-      );
-      _quatB.setFromEuler(_eulerA);
-      planetPivot.quaternion.slerp(_quatB, 1 - Math.exp(-18 * dt));
+      const travelX = planetCoordsRef.current.lon - previousWalkCoords.lon;
+      const travelZ = planetCoordsRef.current.lat - previousWalkCoords.lat;
+      const travelAngle = Math.hypot(travelX, travelZ);
+      if (!movementLocked && travelAngle > 1e-10) {
+        travelAxis.set(travelZ, 0, -travelX).normalize();
+        travelStep.setFromAxisAngle(travelAxis, travelAngle);
+        counterStep.setFromAxisAngle(travelAxis, -travelAngle * 0.45);
+        frameInverse.copy(walkingFrame).invert();
+        planetStep.copy(walkingFrame).multiply(counterStep).multiply(frameInverse);
+        planetPivot.quaternion.multiply(planetStep).normalize();
+        walkingFrame.multiply(travelStep).normalize();
+      }
+      previousWalkCoords.lon = planetCoordsRef.current.lon;
+      previousWalkCoords.lat = planetCoordsRef.current.lat;
+      spiritRoot.quaternion.copy(walkingFrame);
+      spiritRoot.position.set(0, PLANET_RADIUS, 0).applyQuaternion(walkingFrame);
+
+      if (isResting) hasRestedRef.current = true;
+      guidance.visible = !isResting && !hasRestedRef.current;
+      beacon.visible = guidance.visible;
+      arrivalRing.visible = guidance.visible;
+      if (guidance.visible) {
+        if (guideStart.distanceToSquared(spiritRoot.position) > 0.0009) updateGuide(spiritRoot.position);
+        guideCurve?.getPoint((elapsed * 0.3) % 1, guideSpark.position);
+        glowMaterial.opacity = 0.24 + Math.sin(elapsed * 2) * 0.05;
+        beacon.scale.setScalar(1 + Math.sin(elapsed * 1.8) * 0.04);
+      }
+
+      // The resting view looks over the companion's back toward the local horizon.
+      spiritRoot.getWorldPosition(spiritWorld);
+      surfaceNormal.copy(spiritRoot.position).normalize().applyQuaternion(planetPivot.quaternion);
+      surfaceForward.set(0, 0, 1).applyQuaternion(spiritRoot.quaternion).applyQuaternion(planetPivot.quaternion);
+      restingPosition.copy(spiritWorld).addScaledVector(surfaceNormal, 1.3).addScaledVector(surfaceForward, 3.25);
+      restingFocus.copy(spiritWorld).addScaledVector(surfaceNormal, 0.22).addScaledVector(surfaceForward, -0.18);
+      followRotation.copy(planetPivot.quaternion).multiply(walkingFrame).multiply(initialFrameInverse);
+      followPosition.copy(wanderingOffset).applyQuaternion(followRotation).add(planetPivot.position);
+      followFocus.copy(wanderingFocusOffset).applyQuaternion(followRotation).add(planetPivot.position);
+      followUp.copy(worldUp).applyQuaternion(followRotation);
+      const cameraBlend = reducedMotion.matches ? 1 : 1 - Math.exp(-1.6 * Math.min(rawDt, 0.1));
+      camera.position.lerp(isResting ? restingPosition : followPosition, cameraBlend);
+      cameraFocus.lerp(isResting ? restingFocus : followFocus, cameraBlend);
+      camera.up.lerp(isResting ? surfaceNormal : followUp, cameraBlend).normalize();
+      camera.lookAt(cameraFocus);
 
       // 3. 检测小精灵是否接近【🪑 聆听石】或【🌀 引力传送门】
-      const dRock = Math.hypot(
-        planetCoordsRef.current.lon - ROCK_COORDS.lon,
-        planetCoordsRef.current.lat - ROCK_COORDS.lat
-      );
-      const dPortal = Math.hypot(
-        planetCoordsRef.current.lon - PORTAL_COORDS.lon,
-        planetCoordsRef.current.lat - PORTAL_COORDS.lat
-      );
+      const currentNormal = spiritRoot.position.clone().normalize();
+      const dRock = Math.acos(THREE.MathUtils.clamp(currentNormal.dot(rockNormal), -1, 1));
+      const dPortal = Math.acos(THREE.MathUtils.clamp(currentNormal.dot(portalNormal), -1, 1));
       const nearRock = dRock < 0.36;
       const nearPortal = dPortal < 0.36;
 
@@ -793,9 +902,12 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       }
 
       // 4. 更新小精灵朝向与姿态动画（漫步 / 乖巧抱膝坐下 / 轻点跳跃）
-      currentYaw = THREE.MathUtils.damp(currentYaw, targetYaw, 10, dt);
+      const desiredYaw = isResting ? Math.PI : targetYaw;
+      const yawDelta = Math.atan2(Math.sin(desiredYaw - currentYaw), Math.cos(desiredYaw - currentYaw));
+      currentYaw += yawDelta * (reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt));
       spiritBodyPivot.rotation.y = currentYaw;
 
+      if (isResting) sceneRefs.current.hopImpulse = 0;
       if (sceneRefs.current.hopImpulse > 0.01) {
         sceneRefs.current.hopImpulse = Math.max(0, sceneRefs.current.hopImpulse - dt * 2.2);
       }
@@ -805,7 +917,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         const sway = Math.sin(elapsed * 2.2) * 0.07;
         spiritBodyPivot.position.y = THREE.MathUtils.damp(
           spiritBodyPivot.position.y,
-          0.06 + hopOffset,
+          0.008,
           8,
           dt
         );
@@ -842,7 +954,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         leftArm.position.set(-0.24, 0.22, 0.04 - stepSwing * 0.07);
         rightArm.position.set(0.24, 0.22, 0.04 + stepSwing * 0.07);
       } else {
-        const breathe = Math.sin(elapsed * 2.4) * 0.025;
+        const breathe = 0.008 + Math.sin(elapsed * 2.4) * 0.006;
         spiritBodyPivot.position.y = THREE.MathUtils.damp(
           spiritBodyPivot.position.y,
           breathe + hopOffset,
@@ -900,9 +1012,17 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       renderer.setSize(w, h);
     };
     window.addEventListener('resize', handleResize);
+    // Sitting reveals the message form and changes the stage height without a window resize.
+    const resizeObserver = new ResizeObserver(handleResize);
+    resizeObserver.observe(container);
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      resizeObserver.disconnect();
+      guideCore.geometry.dispose();
+      guideGlow.geometry.dispose();
+      guideMaterial.dispose();
+      glowMaterial.dispose();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDownRay);
       renderer.domElement.removeEventListener('click', handleCanvasClick);
       cancelAnimationFrame(frameId);
@@ -915,7 +1035,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
   }, [joystickInputRef, planetCoordsRef, targetCoordsRef, springVelocityRef]);
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center">
+    <div className="relative w-full flex-1 min-h-0 flex items-center justify-center">
       {/* 头顶云朵状白色气泡（正常倾诉 4秒 / 空输入错误轻柔晃动提示） */}
       {overheadBubble && (
         <div
@@ -943,8 +1063,19 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       {/* Three.js 独立挂载容器 */}
       <div
         ref={mountRef}
-        className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
-        title={copy.stageHint} aria-label={copy.stageHint}
+        role="button"
+        tabIndex={pose === 'sitting' || !interactionEnabled ? -1 : 0}
+        aria-disabled={pose === 'sitting' || !interactionEnabled}
+        aria-keyshortcuts="Enter Space"
+        onKeyDown={(event) => {
+          if (interactionEnabled && pose !== 'sitting' && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            onTapSpirit();
+          }
+        }}
+        className={`w-full h-full touch-none ${pose === 'sitting' ? 'cursor-default' : 'cursor-pointer'}`}
+        title={pose === 'sitting' ? copy.restHint : copy.stageHint}
+        aria-label={pose === 'sitting' ? copy.restHint : copy.stageHint}
       />
     </div>
   );

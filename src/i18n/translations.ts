@@ -14,15 +14,18 @@ const en = {
       "options": [
         {
           "value": "A",
-          "label": "A fog of tiredness and heaviness"
+          "label": "A fog of tiredness and heaviness",
+          "emoji": "🌫️"
         },
         {
           "value": "B",
-          "label": "A tangled ball of thoughts"
+          "label": "A tangled ball of thoughts",
+          "emoji": "🧶"
         },
         {
           "value": "C",
-          "label": "A quiet, empty daydream"
+          "label": "A quiet, empty daydream",
+          "emoji": "🫧"
         }
       ]
     },
@@ -32,15 +35,18 @@ const en = {
       "options": [
         {
           "value": "A",
-          "label": "The view outside a window and a gentle breeze"
+          "label": "The view outside a window and a gentle breeze",
+          "emoji": "🪟"
         },
         {
           "value": "B",
-          "label": "Your paused footsteps and the rhythm of your breathing"
+          "label": "Your paused footsteps and the rhythm of your breathing",
+          "emoji": "👣"
         },
         {
           "value": "C",
-          "label": "A cloud drifting slowly across the sky"
+          "label": "A cloud drifting slowly across the sky",
+          "emoji": "☁️"
         }
       ]
     },
@@ -50,15 +56,18 @@ const en = {
       "options": [
         {
           "value": "A",
-          "label": "A warm, sunlit place where you can unwind"
+          "label": "A warm, sunlit place where you can unwind",
+          "emoji": "🍊"
         },
         {
           "value": "B",
-          "label": "A cool morning breeze passing through the leaves"
+          "label": "A cool morning breeze passing through the leaves",
+          "emoji": "🌿"
         },
         {
           "value": "C",
-          "label": "An endless sky where everything feels weightless"
+          "label": "An endless sky where everything feels weightless",
+          "emoji": "☁️"
         }
       ]
     }
@@ -71,7 +80,7 @@ const en = {
     "Leave your worries beyond gravity. This moment is yours."
   ],
   "ROAMING_COPY": {
-    "walkHint": "Move around and find the Listening Stone. Sit down and listen for a while.",
+    "walkHint": "Follow the glowing arc to the Listening Stone. Tap the stone or your companion to sit.",
     "sitButton": "Sit & Listen",
     "standUpButton": "Resume Wandering",
     "portalButton": "Choose a Planet",
@@ -143,11 +152,34 @@ const en = {
   "portalNav": "Find Portal",
   "rockNav": "Find Listening Stone",
   "joystick": "Wandering Joystick",
-  "joystickHint": "Drag to wander, or use arrow keys / WASD",
-  "stageHint": "Drag the planet with your finger or mouse, or use the movement controls",
-  "spiritHint": "Purr~ Drag the planet or use the joystick to take me for a stroll!",
+  "joystickHint": "Drag the joystick to walk, or use arrow keys / WASD",
+  "stageHint": "Use the joystick to follow the glowing arc. Tap your companion to sit anywhere.",
+  "spiritHint": "Purr~ Use the joystick to take me for a stroll!",
   "tapSpirit": "Tap the little spirit",
-  "releaseBubble": "Release Your Bubble"
+  "releaseBubble": "Release Your Bubble",
+  "restHint": "Stay here for a while. Choose Resume Wandering when you are ready to move.",
+  "stoneGuide": "Follow the glowing arc to the Listening Stone. You can also tap your companion to sit anywhere.",
+  "stoneArrived": "You are here. Tap the Listening Stone or your companion to sit and listen.",
+  "planetGuide": {
+    "title": "A Little Guide to Your Planet",
+    "subtitle": "There is no hurry. Here is how to find a little quiet.",
+    "steps": [
+      {
+        "title": "Follow the light",
+        "body": "Use the joystick to walk. Follow the glowing arc toward the Listening Stone."
+      },
+      {
+        "title": "Sit and listen",
+        "body": "Tap the stone when you are close, or tap your companion to sit anywhere. The view will ease in behind you."
+      },
+      {
+        "title": "Let a thought float",
+        "body": "While sitting, write a little thought and let it drift away. Leave for Now appears after three seconds of rest."
+      }
+    ],
+    "controls": "You can also move with WASD or arrow keys. Choose Resume Wandering when you feel ready.",
+    "confirm": "Got It, Let’s Wander"
+  }
 };
 
 type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQuestion[] };
@@ -164,15 +196,18 @@ const zh: Copy = {
       "options": [
         {
           "value": "A",
-          "label": "🌫️ 灰蒙蒙的困倦与沉重"
+          "label": "灰蒙蒙的困倦与沉重",
+          "emoji": "🌫️"
         },
         {
           "value": "B",
-          "label": "🧶 乱糟糟解不开的线团"
+          "label": "乱糟糟解不开的线团",
+          "emoji": "🧶"
         },
         {
           "value": "C",
-          "label": "🫧 稍微有点空落落的发呆"
+          "label": "稍微有点空落落的发呆",
+          "emoji": "🫧"
         }
       ]
     },
@@ -182,15 +217,18 @@ const zh: Copy = {
       "options": [
         {
           "value": "A",
-          "label": "🪟 眼前的一方窗景与微风"
+          "label": "眼前的一方窗景与微风",
+          "emoji": "🪟"
         },
         {
           "value": "B",
-          "label": "👣 暂缓的脚步与呼吸起伏"
+          "label": "暂缓的脚步与呼吸起伏",
+          "emoji": "👣"
         },
         {
           "value": "C",
-          "label": "☁️ 天空里慢慢飘过的一朵云"
+          "label": "天空里慢慢飘过的一朵云",
+          "emoji": "☁️"
         }
       ]
     },
@@ -200,15 +238,18 @@ const zh: Copy = {
       "options": [
         {
           "value": "A",
-          "label": "🍊 晒过太阳的微温与松弛"
+          "label": "晒过太阳的微温与松弛",
+          "emoji": "🍊"
         },
         {
           "value": "B",
-          "label": "🌿 穿过树叶的微凉晨风"
+          "label": "穿过树叶的微凉晨风",
+          "emoji": "🌿"
         },
         {
           "value": "C",
-          "label": "☁️ 无重力的万里晴空"
+          "label": "无重力的万里晴空",
+          "emoji": "☁️"
         }
       ]
     }
@@ -221,7 +262,7 @@ const zh: Copy = {
     "把烦恼留在引力场外，此刻只属于你自己。"
   ],
   "ROAMING_COPY": {
-    "walkHint": "左右轻点，在星球上走一走，去【聆听石】坐下听听音乐吧。",
+    "walkHint": "沿着发光弧线去找聆听石吧，轻点石头或小精灵就能坐下。",
     "sitButton": "坐下听歌",
     "standUpButton": "继续漫步",
     "portalButton": "选择一颗星球",
@@ -293,11 +334,34 @@ const zh: Copy = {
   "portalNav": "寻找传送门",
   "rockNav": "寻找聆听石",
   "joystick": "漫步摇杆",
-  "joystickHint": "拖动摇杆自由漫步，也可以使用方向键或 WASD",
-  "stageHint": "用手指或鼠标拖动星球，也可以用底部控制器漫步",
-  "spiritHint": "呼噜呼噜～滑动星球，或用摇杆带我走走吧！",
+  "joystickHint": "拖动摇杆漫步，也可以使用方向键或 WASD",
+  "stageHint": "用摇杆跟着光弧走，轻点小精灵，在哪里都能坐下。",
+  "spiritHint": "呼噜呼噜～用摇杆带我走走吧！",
   "tapSpirit": "轻点小精灵",
-  "releaseBubble": "放飞你的气泡"
+  "releaseBubble": "放飞你的气泡",
+  "restHint": "就在这里歇一会儿吧。想走走时，点「继续漫步」。",
+  "stoneGuide": "跟着发光弧线去找聆听石吧，也可以轻点小精灵原地坐下。",
+  "stoneArrived": "到啦，轻点聆听石或小精灵，坐下听一会儿吧。",
+  "planetGuide": {
+    "title": "漫游前，先看一眼",
+    "subtitle": "不赶时间，先认识这颗小星球。",
+    "steps": [
+      {
+        "title": "跟着光走",
+        "body": "用摇杆移动小精灵，沿着发光弧线去找聆听石。"
+      },
+      {
+        "title": "坐下听听",
+        "body": "走近后轻点石头，也可以轻点小精灵原地坐下。镜头会慢慢来到你的身后。"
+      },
+      {
+        "title": "放飞一点心事",
+        "body": "坐下后可以写几句话，让它们飘向星空。歇满三秒后，会出现「先去忙啦」。"
+      }
+    ],
+    "controls": "也可以用 WASD 或方向键移动。想走走时，点「继续漫步」。",
+    "confirm": "知道啦，开始漫游"
+  }
 };
 
 export const translations: Record<Language, Copy> = { en: en as Copy, zh };

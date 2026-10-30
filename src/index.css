@@ -433,8 +433,13 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .app-header { margin-top: calc(52px + env(safe-area-inset-top, 0px)); flex-shrink: 0; }
 .app-header > div:first-child { flex: 1 1 100%; }
 .app-header > div:last-child { margin-left: auto; }
+.planet-header { min-height: 52px; }
+.planet-header > div:first-child { padding-right: 112px; }
+.roaming-mobile-frame > .planet-scene { padding-bottom: clamp(24px, 4vh, 36px); }
 .roaming-mobile-frame > section { min-height: 0; overflow-y: auto; }
 .roaming-mobile-frame button { white-space: normal; overflow-wrap: anywhere; }
+.roaming-mobile-frame button:disabled { opacity: .45; cursor: default; }
+.roaming-mobile-frame fieldset:disabled [aria-disabled="true"] { opacity: .45; cursor: default; }
 .roaming-mobile-frame input { user-select: text; }
 .roaming-mobile-frame section > div { flex-shrink: 0; }
 .roaming-mobile-frame section .planet-stage { flex-shrink: 1; min-height: 190px; }
@@ -454,4 +459,78 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   border-radius: 16px;
   background: rgba(255, 255, 255, .94);
   color: #334155;
+}
+
+.joystick-panel {
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  gap: 10px;
+  padding: 6px 0 4px;
+}
+.joystick-panel[hidden] { display: none; }
+.wandering-joystick {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  color: #64748b;
+  cursor: grab;
+  touch-action: none;
+  background: radial-gradient(circle at 45% 35%, #fff 0%, #f3e8ff 68%, #fed7aa 100%);
+  box-shadow: inset 0 2px 10px #6e5f8c2e, 0 0 24px #ffffffb0;
+}
+.wandering-joystick:active { cursor: grabbing; }
+.joystick-knob {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #fff 0%, #fff5f7 70%, #fbcfe8 100%);
+  box-shadow: 0 5px 14px #6450783d, 0 0 12px #ffffffe6;
+  pointer-events: none;
+  transition: transform 75ms;
+}
+
+.planet-guide-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 78px 20px 24px;
+  background: rgba(245, 239, 255, .4);
+  backdrop-filter: blur(10px);
+}
+.planet-guide-card {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 350px;
+  max-height: 100%;
+  overflow: hidden;
+  padding: 26px 24px;
+  border-radius: 30px;
+  color: #334155;
+  text-align: center;
+  background: rgba(255, 253, 255, .96);
+  box-shadow: 0 16px 56px #3c285829;
+}
+.planet-guide-card > .planet-guide-scroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+.guide-step-number {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  background: #eee5f7;
+  color: #695281;
 }

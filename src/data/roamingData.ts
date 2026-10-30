@@ -7,6 +7,7 @@ export interface QuizQuestion {
   question: string;
   options: {
     value: QuizChoice;
+    emoji: string;
     label: string;
   }[];
 }

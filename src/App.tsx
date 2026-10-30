@@ -11,11 +11,10 @@ import { soundEngine } from './audio/soundEngine';
 import { FluffySpirit, OverheadBubbleData, SpiritPose } from './components/FluffySpirit';
 import {
   JoystickVector,
-  PORTAL_COORDS,
-  ROCK_COORDS,
   ThreePlanetStage,
 } from './components/ThreePlanetStage';
 import { BottomPlanetController } from './components/BottomPlanetController';
+import { PlanetGuide } from './components/PlanetGuide';
 
 type AppAct = 'intro' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
@@ -29,8 +28,6 @@ interface FloatingStardustItem {
 
 const LOCAL_STORAGE_KEY = 'brief_roaming_user_stardust_v1';
 
-const clampLat = (lat: number) => Math.max(-0.62, Math.min(0.62, lat));
-
 export default function App() {
   const { copy } = useLanguage();
   const { INTRO_COPY, QUIZ_QUESTIONS, ROAMING_COPY, BUILTIN_STARDUST_QUOTES } = copy;
@@ -42,11 +39,14 @@ export default function App() {
 
   // 第三幕 & 第四幕：星球漫步与小精灵状态
   const [spiritPose, setSpiritPose] = useState<SpiritPose>('idle');
+  // Gate input synchronously, including pointer events queued before React renders.
+  const isRestingRef = useRef(false);
+  const isGuideOpenRef = useRef(false);
+  const [isGuideOpen, setIsGuideOpen] = useState(false);
+  const [canLeave, setCanLeave] = useState(false);
   const [spiritFacing, setSpiritFacing] = useState<'left' | 'right'>('right');
   const [isMusicPlaying, setIsMusicPlaying] = useState<boolean>(false);
-  const [isMuted, setIsMuted] = useState<boolean>(false);
   const [whiteNoiseEnabled, setWhiteNoiseEnabled] = useState<boolean>(true);
-  const [isDockCollapsed, setIsDockCollapsed] = useState<boolean>(false);
 
   // 3D 星球控制器输入向量、当前球面经纬度、弹簧目标经纬度与速度 Ref
   const joystickInputRef = useRef<JoystickVector>({ x: 0, y: 0 });
@@ -62,26 +62,6 @@ export default function App() {
     lon: 0,
     lat: 0,
   });
-  const stepSpringFrameRef = useRef<number | null>(null);
-
-  // 手势滑动 (Touch Swipe / Pointer Drag) 状态追踪 Ref
-  const swipeStateRef = useRef<{
-    active: boolean;
-    lastX: number;
-    lastY: number;
-    lastTime: number;
-    vx: number;
-    vy: number;
-  }>({
-    active: false,
-    lastX: 0,
-    lastY: 0,
-    lastTime: 0,
-    vx: 0,
-    vy: 0,
-  });
-
-  // 是否靠近【🪑 聆听石】或【🌀 引力传送门】
   const [isNearListeningRock, setIsNearListeningRock] = useState<boolean>(false);
   const [isNearPortal, setIsNearPortal] = useState<boolean>(false);
 
@@ -105,7 +85,6 @@ export default function App() {
   const [moodInput, setMoodInput] = useState<string>('');
   const [overheadBubble, setOverheadBubble] = useState<OverheadBubbleData | null>(null);
   const bubbleTimerRef = useRef<number | null>(null);
-  const walkTimeoutRef = useRef<number | null>(null);
 
   // 传送门浮层开关
   const [isPortalModalOpen, setIsPortalModalOpen] = useState<boolean>(false);
@@ -161,16 +140,14 @@ export default function App() {
 
   // 组件卸载时清理音频与动画帧
   useEffect(() => {
+    soundEngine.setMuted(false);
     return () => {
       soundEngine.stopPlanetMusicImmediate();
-      if (stepSpringFrameRef.current) {
-        cancelAnimationFrame(stepSpringFrameRef.current);
-      }
     };
   }, []);
 
   const triggerOverheadBubble = useCallback(
-    (text: string, isError = false, durationMs = 4000, messageKey?: 'emptyErrorBubble' | 'spiritHint') => {
+    (text: string, isError = false, durationMs = 4000, messageKey?: 'emptyErrorBubble' | 'spiritHint' | 'stoneGuide') => {
       if (bubbleTimerRef.current) {
         clearTimeout(bubbleTimerRef.current);
       }
@@ -229,14 +206,24 @@ export default function App() {
       joystickInputRef.current = { x: 0, y: 0 };
       setSpiritPose('idle');
       setIsMusicPlaying(false);
+      isGuideOpenRef.current = true;
+      setIsGuideOpen(true);
       setAct('roaming');
     }, 1500);
     return () => window.clearTimeout(timer);
   }, [act]);
 
+  useEffect(() => {
+    setCanLeave(false);
+    if (act !== 'roaming' || spiritPose !== 'sitting') return;
+    const timer = window.setTimeout(() => setCanLeave(true), 3000);
+    return () => window.clearTimeout(timer);
+  }, [act, spiritPose]);
+
   // 底部控制器漫步状态同步
   const handleWalkStateChange = useCallback(
     (isWalking: boolean, facing?: 'left' | 'right') => {
+      if (isRestingRef.current || isGuideOpenRef.current) return;
       if (facing) {
         setSpiritFacing(facing);
       }
@@ -248,222 +235,39 @@ export default function App() {
     []
   );
 
-  /**
-   * 步进移动函数 (handleStepMove)：
-   * 采用小型弹簧缓动插值逻辑 (Spring-like Interpolation) 平滑更新 planetCoordsRef，
-   * 彻底消除点击步进或手势滑动时的瞬间跳跃感。
-   */
-  const handleStepMove = useCallback((dx: number, dy: number, silent = false) => {
-    if (!silent) {
-      soundEngine.playSoftClick(dx < 0 ? -30 : 30);
-    }
-    if (Math.abs(dx) > 0.001) {
-      setSpiritFacing(dx < 0 ? 'left' : 'right');
-    }
+  // Rest exactly where the visitor stopped, cancelling all queued movement.
+  const stopMovement = () => {
+    joystickInputRef.current = { x: 0, y: 0 };
+    targetCoordsRef.current = { ...planetCoordsRef.current };
+    springVelocityRef.current = { lon: 0, lat: 0 };
+  };
 
-    // 累加弹簧目标坐标并施加初速度脉冲，使 planetCoordsRef 通过弹簧阻尼平滑过渡
-    targetCoordsRef.current = {
-      lon: targetCoordsRef.current.lon + dx,
-      lat: clampLat(targetCoordsRef.current.lat + dy),
-    };
-
-    // 注入柔和的弹簧初速度冲量 (spring impulse)，使起步与收尾如丝般顺滑
-    springVelocityRef.current.lon += dx * 2.4;
-    springVelocityRef.current.lat += dy * 2.4;
-
-    // 启动小型弹簧缓动跟踪，确保小精灵在缓动期间保持漫步姿态并在收敛后自然停步
-    if (stepSpringFrameRef.current) {
-      cancelAnimationFrame(stepSpringFrameRef.current);
-    }
-
-    setSpiritPose((prev) => (prev === 'sitting' ? 'sitting' : 'walking'));
-
-    let lastTimestamp = performance.now();
-    const animateSpringStep = (now: number) => {
-      const dt = Math.min((now - lastTimestamp) / 1000, 0.05);
-      lastTimestamp = now;
-
-      const distLon = targetCoordsRef.current.lon - planetCoordsRef.current.lon;
-      const distLat = targetCoordsRef.current.lat - planetCoordsRef.current.lat;
-      const remainingDist = Math.hypot(distLon, distLat);
-      const currentSpeed = Math.hypot(
-        springVelocityRef.current.lon,
-        springVelocityRef.current.lat
-      );
-
-      // 弹簧阻尼微调补偿，保证即便在低帧率环境下也能柔和收敛至目标点
-      if (dt > 0) {
-        const springPull = 1 - Math.exp(-12 * dt);
-        planetCoordsRef.current.lon += distLon * springPull * 0.25;
-        planetCoordsRef.current.lat = clampLat(
-          planetCoordsRef.current.lat + distLat * springPull * 0.25
-        );
-      }
-
-      if (remainingDist > 0.012 || currentSpeed > 0.04) {
-        stepSpringFrameRef.current = requestAnimationFrame(animateSpringStep);
-      } else {
-        stepSpringFrameRef.current = null;
-        if (!swipeStateRef.current.active && Math.hypot(joystickInputRef.current.x, joystickInputRef.current.y) < 0.05) {
-          setSpiritPose((prev) => (prev === 'walking' ? 'idle' : prev));
-        }
-      }
-    };
-
-    stepSpringFrameRef.current = requestAnimationFrame(animateSpringStep);
-
-    if (walkTimeoutRef.current) clearTimeout(walkTimeoutRef.current);
-    walkTimeoutRef.current = window.setTimeout(() => {
-      if (!swipeStateRef.current.active && Math.hypot(joystickInputRef.current.x, joystickInputRef.current.y) < 0.05) {
-        setSpiritPose((prev) => (prev === 'walking' ? 'idle' : prev));
-      }
-    }, 680);
-  }, []);
-
-  /**
-   * 手势滑动（Touch Swipe & Mouse Drag）事件监听：
-   * 支持手指在星球舞台区域自由滑动旋转星球，松手时附带丝滑的惯性滑行与弹簧缓动。
-   */
-  const handleStageTouchStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    swipeStateRef.current = {
-      active: true,
-      lastX: touch.clientX,
-      lastY: touch.clientY,
-      lastTime: performance.now(),
-      vx: 0,
-      vy: 0,
-    };
-  }, []);
-
-  const handleStageTouchMove = useCallback(
-    (e: React.TouchEvent<HTMLDivElement>) => {
-      if (!swipeStateRef.current.active || e.touches.length !== 1) return;
-      const touch = e.touches[0];
-      const now = performance.now();
-      const dt = Math.max(8, now - swipeStateRef.current.lastTime);
-
-      const deltaX = touch.clientX - swipeStateRef.current.lastX;
-      const deltaY = touch.clientY - swipeStateRef.current.lastY;
-
-      swipeStateRef.current.lastX = touch.clientX;
-      swipeStateRef.current.lastY = touch.clientY;
-      swipeStateRef.current.lastTime = now;
-
-      // 将像素位移映射为球面弧度增量（向左滑则向右走，向上滑则向前走）
-      const dLon = -deltaX * 0.0075;
-      const dLat = -deltaY * 0.0055;
-
-      // 指数平滑记录手势滑动瞬时速度（用于松手时的惯性滑行）
-      swipeStateRef.current.vx = swipeStateRef.current.vx * 0.6 + (dLon / (dt / 1000)) * 0.4;
-      swipeStateRef.current.vy = swipeStateRef.current.vy * 0.6 + (dLat / (dt / 1000)) * 0.4;
-
-      if (Math.hypot(deltaX, deltaY) > 1.5) {
-        handleStepMove(dLon, dLat, true);
-      }
-    },
-    [handleStepMove]
-  );
-
-  const handleStageTouchEnd = useCallback(() => {
-    if (!swipeStateRef.current.active) return;
-    swipeStateRef.current.active = false;
-
-    // 施加手势滑动惯性尾韵 (Inertial Throw)
-    const inertiaLon = Math.max(-0.55, Math.min(0.55, swipeStateRef.current.vx * 0.16));
-    const inertiaLat = Math.max(-0.35, Math.min(0.35, swipeStateRef.current.vy * 0.14));
-
-    if (Math.hypot(inertiaLon, inertiaLat) > 0.015) {
-      handleStepMove(inertiaLon, inertiaLat, true);
-    }
-  }, [handleStepMove]);
-
-  // 桌面端鼠标拖拽滑动兼容支持
-  const handleStageMouseDown = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    // 忽略按钮点击
-    if ((e.target as HTMLElement).closest('button')) return;
-    swipeStateRef.current = {
-      active: true,
-      lastX: e.clientX,
-      lastY: e.clientY,
-      lastTime: performance.now(),
-      vx: 0,
-      vy: 0,
-    };
-  }, []);
-
-  const handleStageMouseMove = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (!swipeStateRef.current.active) return;
-      const now = performance.now();
-      const dt = Math.max(8, now - swipeStateRef.current.lastTime);
-
-      const deltaX = e.clientX - swipeStateRef.current.lastX;
-      const deltaY = e.clientY - swipeStateRef.current.lastY;
-
-      swipeStateRef.current.lastX = e.clientX;
-      swipeStateRef.current.lastY = e.clientY;
-      swipeStateRef.current.lastTime = now;
-
-      const dLon = -deltaX * 0.007;
-      const dLat = -deltaY * 0.005;
-
-      swipeStateRef.current.vx = swipeStateRef.current.vx * 0.6 + (dLon / (dt / 1000)) * 0.4;
-      swipeStateRef.current.vy = swipeStateRef.current.vy * 0.6 + (dLat / (dt / 1000)) * 0.4;
-
-      if (Math.hypot(deltaX, deltaY) > 1.5) {
-        handleStepMove(dLon, dLat, true);
-      }
-    },
-    [handleStepMove]
-  );
-
-  const handleStageMouseUp = useCallback(() => {
-    if (!swipeStateRef.current.active) return;
-    swipeStateRef.current.active = false;
-
-    const inertiaLon = Math.max(-0.5, Math.min(0.5, swipeStateRef.current.vx * 0.14));
-    const inertiaLat = Math.max(-0.3, Math.min(0.3, swipeStateRef.current.vy * 0.12));
-
-    if (Math.hypot(inertiaLon, inertiaLat) > 0.015) {
-      handleStepMove(inertiaLon, inertiaLat, true);
-    }
-  }, [handleStepMove]);
-
-  // 快速漫步前往【🪑 聆听石】或【🌀 引力传送门】（通过弹簧目标平滑漫步过去）
-  const handleQuickNavigate = useCallback(
-    (target: 'rock' | 'portal') => {
-      soundEngine.playSoftClick(55);
-      const dest = target === 'rock' ? ROCK_COORDS : PORTAL_COORDS;
-      const dx = dest.lon - targetCoordsRef.current.lon;
-      const dy = dest.lat - targetCoordsRef.current.lat;
-      handleStepMove(dx, dy, true);
-    },
-    [handleStepMove]
-  );
-
-  // 点击 [ 🪑 坐下听歌 ] 或切换起身
   const handleSitAndListen = () => {
+    if (isGuideOpenRef.current) return;
+    setCanLeave(false);
     soundEngine.playSoftClick(90);
+    stopMovement();
 
-    // 通过弹簧缓动平滑漫步对齐至【🪑 聆听石】
-    targetCoordsRef.current = { lon: ROCK_COORDS.lon, lat: ROCK_COORDS.lat };
-
-    if (spiritPose === 'sitting' && isMusicPlaying) {
+    if (isRestingRef.current) {
+      isRestingRef.current = false;
       setSpiritPose('idle');
       setIsMusicPlaying(false);
       soundEngine.stopPlanetMusicImmediate();
     } else {
+      isRestingRef.current = true;
       setSpiritPose('sitting');
       setIsMusicPlaying(true);
-      try { soundEngine.startPlanetMusic(planetId); } catch { setFeedback('audioError'); }
+      try { soundEngine.startPlanetMusic(planetId); } catch {
+        setIsMusicPlaying(false);
+        setFeedback('audioError');
+      }
     }
   };
 
   // 树洞放飞心情（含空输入错误处理）
   const handleReleaseMood = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isRestingRef.current || act !== 'roaming') return;
     const trimmed = moodInput;
 
     if (!trimmed.trim()) {
@@ -503,9 +307,14 @@ export default function App() {
 
   // 通过【🌀 传送门】切换体验另外 3 个星球
   const handleSwitchPlanet = (nextPlanetId: PlanetId) => {
+    if (isRestingRef.current) return;
     soundEngine.playWarpTransition();
     setIsPortalModalOpen(false);
     setPlanetId(nextPlanetId);
+    stopMovement();
+    setSpiritPose('idle');
+    isGuideOpenRef.current = true;
+    setIsGuideOpen(true);
 
     if (isMusicPlaying) {
       try { soundEngine.startPlanetMusic(nextPlanetId); } catch { setFeedback('audioError'); }
@@ -514,6 +323,11 @@ export default function App() {
 
   // 点击右上角 [ 👋 先去忙啦 ] 进入告别闭环
   const handleLeaveToFarewell = () => {
+    if (!canLeave || act !== 'roaming' || !isRestingRef.current) return;
+    isRestingRef.current = false;
+    isGuideOpenRef.current = false;
+    setIsGuideOpen(false);
+    stopMovement();
     soundEngine.playSoftClick(20);
     soundEngine.fadeOutAndStop(1.4);
     joystickInputRef.current = { x: 0, y: 0 };
@@ -526,6 +340,10 @@ export default function App() {
 
   // 点击 [ 重新开启漫游 ] 重置状态回到开场
   const handleRestartAll = () => {
+    isRestingRef.current = false;
+    isGuideOpenRef.current = false;
+    setIsGuideOpen(false);
+    stopMovement();
     soundEngine.playSoftClick(60);
     soundEngine.stopPlanetMusicImmediate();
     joystickInputRef.current = { x: 0, y: 0 };
@@ -540,12 +358,6 @@ export default function App() {
   };
 
   // 静音与环境白噪音切换
-  const handleToggleMute = () => {
-    const next = !isMuted;
-    setIsMuted(next);
-    soundEngine.setMuted(next);
-  };
-
   const handleToggleWhiteNoise = () => {
     const next = !whiteNoiseEnabled;
     setWhiteNoiseEnabled(next);
@@ -558,17 +370,16 @@ export default function App() {
     setIsNearPortal(nearPortal);
   }, []);
 
-  const handleSelect3DLandmark = useCallback(
-    (landmark: 'rock' | 'portal') => {
-      handleQuickNavigate(landmark);
-      if (landmark === 'portal') {
-        setIsPortalModalOpen(true);
-      }
-    },
-    [handleQuickNavigate]
-  );
+  const handleSelect3DLandmark = (landmark: 'rock' | 'portal') => {
+    if (isRestingRef.current || isGuideOpenRef.current) return;
+    if (landmark === 'rock') {
+      if (isNearListeningRock) handleSitAndListen();
+      else triggerOverheadBubble('', false, 3000, 'stoneGuide');
+    } else if (isNearPortal) {
+      setIsPortalModalOpen(true);
+    }
+  };
 
-  // 根据当前幕次决定背景色盘
   const isPlanetThemeActive = act === 'warp' || act === 'roaming' || act === 'farewell';
   const currentColors = isPlanetThemeActive
     ? activePlanet.colors
@@ -686,7 +497,7 @@ export default function App() {
 
         {/* ================= 3. 顶部轻量状态栏与常驻告别按钮 ================= */}
         <LanguageToggle />
-        <header className="app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1">
+        <header inert={isGuideOpen} className={`app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1 ${act === 'roaming' ? 'planet-header' : ''}`}>
           <div className="flex items-center gap-2">
             <span
               className="text-xs font-medium tracking-widest opacity-85"
@@ -696,30 +507,16 @@ export default function App() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
-            {act === 'roaming' && (
-              <button
-                type="button"
-                onClick={handleToggleMute}
-                style={softPillStyle}
-                className="px-3 py-1.5 rounded-full text-xs font-medium text-slate-700 flex items-center gap-1 cursor-pointer whitespace-nowrap shrink-0"
-                title={isMuted ? copy.soundOn : copy.mute} aria-label={isMuted ? copy.soundOn : copy.mute}
-              >
-                <span>{isMuted ? copy.muted : copy.soundOn}</span>
-              </button>
-            )}
-
-            {act !== 'farewell' && (
+            {act === 'roaming' && spiritPose === 'sitting' && canLeave && (
               <button
                 type="button"
                 onClick={handleLeaveToFarewell}
                 style={softPillStyle}
-                className="px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
+                className="absolute right-5 top-4 px-3.5 py-1.5 rounded-full text-xs font-medium text-slate-700 cursor-pointer whitespace-nowrap shrink-0"
               >
                 {ROAMING_COPY.leaveButton}
               </button>
             )}
-          </div>
         </header>
 
         {/* ================= 第一幕：开场引导页 ================= */}
@@ -805,17 +602,14 @@ export default function App() {
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => setQuizAnswers(prev => {
-                      const next = [...prev];
-                      next[quizStep] = option.value;
-                      return next;
-                    })}
+                    onClick={() => handleSelectOption(option.value)}
                     aria-pressed={quizAnswers[quizStep] === option.value}
                     style={quizAnswers[quizStep] === option.value ? { outline: '2px solid #78649b' } : undefined}
-                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[15px] font-medium text-slate-700 flex items-center justify-between cursor-pointer"
+                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[15px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
                   >
-                    <span>{option.label}</span>
-                    <span className="text-xs opacity-45 font-normal">{option.value}</span>
+                    <span className="text-[24px] leading-none font-semibold shrink-0 w-5">{option.value}</span>
+                    <span className="text-[25px] leading-none shrink-0" aria-hidden="true">{option.emoji}</span>
+                    <span className="min-w-0 flex-1">{option.label}</span>
                   </button>
                 ))}
               </div>
@@ -827,14 +621,6 @@ export default function App() {
                 else setAct('intro');
               }}>
                 {copy.back}
-              </button>
-              <button
-                type="button"
-                disabled={!quizAnswers[quizStep]}
-                className="disabled:opacity-40"
-                onClick={() => handleSelectOption(quizAnswers[quizStep])}
-              >
-                {copy.continue}
               </button>
               <button type="button" onClick={handleSkipQuiz}>
                 {copy.skip}
@@ -862,7 +648,7 @@ export default function App() {
 
         {/* ================= 第三幕 & 第四幕：3D 星球漫步、手势滑动、底部控制器、坐下听歌与星尘树洞 ================= */}
         {act === 'roaming' && (
-          <section className="relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
+          <section inert={isGuideOpen} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
             {/* 顶部星球氛围副标题与听歌白噪音控制 */}
             <div className="px-5 pt-0.5 text-center z-20">
               <p
@@ -919,121 +705,85 @@ export default function App() {
 
             {/* 中央 3D 星球与毛茸茸白色小精灵互动舞台（绑定 Touch Swipe 与 Mouse Drag 丝滑旋转手势） */}
             <div
-              onTouchStart={handleStageTouchStart}
-              onTouchMove={handleStageTouchMove}
-              onTouchEnd={handleStageTouchEnd}
-              onTouchCancel={handleStageTouchEnd}
-              onMouseDown={handleStageMouseDown}
-              onMouseMove={handleStageMouseMove}
-              onMouseUp={handleStageMouseUp}
-              onMouseLeave={handleStageMouseUp}
               className="planet-stage relative flex-1 min-h-[250px] flex flex-col items-center justify-center z-20 touch-none"
             >
               <ThreePlanetStage
                 planetId={planetId}
                 pose={spiritPose}
                 isMusicPlaying={isMusicPlaying}
+                interactionEnabled={!isGuideOpen && !isPortalModalOpen}
                 joystickInputRef={joystickInputRef}
                 planetCoordsRef={planetCoordsRef}
                 targetCoordsRef={targetCoordsRef}
                 springVelocityRef={springVelocityRef}
-                overheadBubble={overheadBubble ? { ...overheadBubble, text: overheadBubble.messageKey === 'emptyErrorBubble' ? ROAMING_COPY.emptyErrorBubble : overheadBubble.messageKey === 'spiritHint' ? copy.spiritHint : overheadBubble.text } : null}
+                overheadBubble={overheadBubble ? { ...overheadBubble, text: overheadBubble.messageKey === 'emptyErrorBubble' ? ROAMING_COPY.emptyErrorBubble : overheadBubble.messageKey ? copy[overheadBubble.messageKey] : overheadBubble.text } : null}
                 onNearLandmarkChange={handleNearLandmarkChange}
                 onTapSpirit={() => {
-                  soundEngine.playSpiritChime();
-                  if (!overheadBubble) {
-                    triggerOverheadBubble('', false, 3000, 'spiritHint');
-                  }
+                  if (!isRestingRef.current) handleSitAndListen();
                 }}
                 onSelectLandmark={handleSelect3DLandmark}
               />
 
-              {/* 地标核心操作按钮：[ 🪑 坐下听歌 ] 与 [ 🌀 传送门 ] */}
-              <div className="planet-actions relative z-30 -mt-3 mb-1 flex items-center justify-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleSitAndListen}
-                  style={softPillStyle}
-                  className={`px-4 py-2 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap transition-transform duration-300 ${
-                    isNearListeningRock || isMusicPlaying
-                      ? 'scale-105 ring-2 ring-white'
-                      : 'opacity-90'
-                  }`}
-                >
-                  [ {isMusicPlaying ? ROAMING_COPY.standUpButton : ROAMING_COPY.sitButton} ]
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    soundEngine.playSoftClick(70);
-                    handleQuickNavigate('portal');
-                    setIsPortalModalOpen(true);
-                  }}
-                  style={softPillStyle}
-                  className={`px-4 py-2 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap transition-transform duration-300 ${
-                    isNearPortal ? 'scale-105 ring-2 ring-white' : 'opacity-90'
-                  }`}
-                >
-                  [ {ROAMING_COPY.portalButton} ]
-                </button>
-              </div>
+              {/* 原地坐下或继续漫步 */}
+              {spiritPose === 'sitting' && (
+                <div className="planet-actions relative z-30 -mt-3 mb-1 flex items-center justify-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleSitAndListen}
+                    style={softPillStyle}
+                    className={`px-4 py-2 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap transition-transform duration-300 ${
+                      isNearListeningRock || isMusicPlaying
+                        ? 'scale-105 ring-2 ring-white'
+                        : 'opacity-90'
+                    }`}
+                  >
+                    [ {ROAMING_COPY.standUpButton} ]
+                  </button>
+                </div>
+              )}
             </div>
 
             <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? copy[feedback] : null}</p>
             {/* 底部可折叠控制器与树洞倾诉栏 (Collapsible Bottom Control Dock) */}
             <div className="relative z-30 px-4 pb-4 flex flex-col items-center">
-              <button
-                type="button"
-                onClick={() => setIsDockCollapsed((prev) => !prev)}
-                style={softPillStyle}
-                className="mb-1.5 px-3 py-0.5 rounded-full text-[10px] font-medium text-slate-600 cursor-pointer whitespace-nowrap"
-              >
-                {isDockCollapsed ? copy.expand : copy.collapse}
-              </button>
-
-              {!isDockCollapsed && (
-                <div className="w-full flex flex-col gap-2">
-                  {/* 底部漫步控制器（支持360°摇杆、弹簧步进方向键、地标寻向与键盘WASD） */}
-                  <BottomPlanetController
-                    joystickInputRef={joystickInputRef}
-                    onStepMove={handleStepMove}
-                    onWalkStateChange={handleWalkStateChange}
-                    onQuickNavigate={handleQuickNavigate}
-                    isNearRock={isNearListeningRock}
-                    isNearPortal={isNearPortal}
-                    walkHint={ROAMING_COPY.walkHint}
-                  />
-
-                  <h2 className="text-xs text-center">{copy.inputTitle}</h2>
-                  {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
-                  <form aria-label={copy.releaseBubble}
-                    onSubmit={handleReleaseMood}
-                    className="flex items-center gap-2 p-1.5 rounded-full"
-                    style={softPillStyle}
-                  >
-                    <input
-                      type="text"
-                      value={moodInput}
-                      onChange={(e) => setMoodInput(e.target.value)}
-                      maxLength={60}
-                      placeholder={ROAMING_COPY.inputPlaceholder}
-                      aria-label={copy.inputTitle}
-                      className="min-w-0 flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
-                    />
-                    <button
-                      type="submit"
+              <div className="w-full flex flex-col gap-2">
+                <BottomPlanetController
+                  disabled={spiritPose === 'sitting' || isGuideOpen || isPortalModalOpen}
+                  joystickInputRef={joystickInputRef}
+                  onWalkStateChange={handleWalkStateChange}
+                  walkHint={isNearListeningRock ? copy.stoneArrived : copy.stoneGuide}
+                />
+                {spiritPose === 'sitting' && (
+                  <>
+                    <h2 className="text-xs text-center">{copy.inputTitle}</h2>
+                    {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
+                    <form aria-label={copy.releaseBubble}
+                      onSubmit={handleReleaseMood}
+                      className="flex items-center gap-2 p-1.5 rounded-full"
                       style={softPillStyle}
-                      className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
                     >
-                      [ {ROAMING_COPY.releaseButton} ]
-                    </button>
-                  </form>
-                </div>
-              )}
+                      <input
+                        type="text"
+                        value={moodInput}
+                        onChange={(e) => setMoodInput(e.target.value)}
+                        maxLength={60}
+                        placeholder={ROAMING_COPY.inputPlaceholder}
+                        aria-label={copy.inputTitle}
+                        className="min-w-0 flex-1 bg-transparent px-3.5 py-1.5 text-xs text-slate-800 placeholder:text-slate-500/85 focus:outline-none"
+                      />
+                      <button
+                        type="submit"
+                        style={softPillStyle}
+                        className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
+                      >
+                        [ {ROAMING_COPY.releaseButton} ]
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
             </div>
 
-            {/* 【🌀 传送门】引力场切换柔和浮层 */}
             {isPortalModalOpen && (
               <div
                 onClick={() => setIsPortalModalOpen(false)}
@@ -1134,6 +884,14 @@ export default function App() {
               <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
             </div>
           </section>
+        )}
+        {act === 'roaming' && isGuideOpen && (
+          <PlanetGuide onConfirm={() => {
+            stopMovement();
+            isGuideOpenRef.current = false;
+            setIsGuideOpen(false);
+            requestAnimationFrame(() => document.querySelector<HTMLElement>('.wandering-joystick')?.focus());
+          }} />
         )}
       </main>
     </div>

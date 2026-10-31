@@ -2,6 +2,10 @@
 
 A small, dreamy escape: answer three gentle questions, wander around a planet with a fluffy companion, rest by the Listening Stone, and let a thought float into the stars.
 
+Each planet's portal unlocks only after sitting at its Listening Stone and standing up again. Approaching a portal before that shows no travel action. This unlock resets on every planet transfer, independently of the globally available Leave button. A softly glowing golden trail leads to the stone first, then to the portal after resting.
+
+Quiet, synthesized footsteps follow the companion's actual walking and visible landing rhythm. A soft low tap and filtered rustle vary slightly with each planet. Stopping, sitting, opening instructions, or pressing against an obstacle without moving produces no new footsteps; language switching preserves the walking rhythm. No additional audio download is needed.
+
 ## Run locally
 
 Use Node.js 22.18 or newer (also required for the browser test's native TypeScript imports).
@@ -84,10 +88,13 @@ node tests/planet-guide.cjs
 node tests/planet-polish.cjs
 node tests/bilingual-layout.cjs
 node tests/planet-framing.cjs
+node tests/sky-farewell.cjs
 ```
 
 The tests use an installed Google Chrome in headless mode. Set `BROWSER_PATH` to another Chromium browser executable if needed, `APP_URL` for a different server URL, or `PLAYWRIGHT_MODULE` for an existing Playwright module directory. The suites check both languages across every screen and panel, preference persistence and storage failures, input and questionnaire preservation, planet and character state, uninterrupted audio timers, localized feedback and accessible labels, and controls at mobile widths from 320 to 414 pixels. The movement/resting regression checks counter-rotation in all four directions, surface and shadow alignment, the joystick-only panel, initial glowing guidance, tapping the Listening Stone, the camera behind the seated companion, rest locking, and restoring movement. Screenshots are saved under tests/; generated images are ignored by Git.
 
 The seated framing regression projects the companion and cushion into the camera view at mobile and desktop sizes. It checks a measurable local push-in, guarded camera distance, thought lanes above the character, fitting controls, and drafts surviving resizing and language changes. The interlude/audio suite also checks all four actual MP3 files, looping, language continuity, rapid re-sitting, and bounded zoom at 320, 390, 414px and desktop sizes. Recorded narration tests use existing tracks only as playback fixtures, then simulate a failed optional recording to verify a single graceful speech fallback.
+
+Confirming the headphone invitation fades the supplied `beginning-music.mp3` into the questionnaire at 70% media volume. It fades out when returning to the interlude or transitioning into the planet. Language changes preserve playback. The farewell screen contains one larger SVG cloud companion with a lightly textured edge, independent gentle waving, floating and blinking. Star glints and soft nebula wisps take their colors from the current planet, preserving the original background mapping. Below the companion, a Cormorant Garamond heading and Nunito Sans caption sit directly on the background. The main return button is followed by a quieter text link to another planet. Reduced motion disables decorative animations. Scrollbars are hidden throughout the interface while touch and wheel scrolling remain available on short displays. Sky thoughts own fixed tracks until they finish, so removing or adding one never promotes another row. `sky-farewell.cjs` verifies these transitions, all four farewell palettes, long input, mobile layouts, and language continuity.
 
 See [PROCESS.md](PROCESS.md) for implementation and validation notes, and [CREDITS.md](CREDITS.md) for acknowledgements.

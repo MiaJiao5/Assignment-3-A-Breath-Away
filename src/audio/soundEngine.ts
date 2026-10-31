@@ -119,6 +119,11 @@ class SoundEngine {
   private musicCleanupTimer: number | null = null;
   private voiceSession = 0;
   private voiceStop: (() => void) | null = null;
+  private beginningSession = 0;
+  private beginningStop: (() => void) | null = null;
+  private beginningGain: GainNode | null = null;
+  private footstepNoise: AudioBuffer | null = null;
+  private lastFootstepAt = -Infinity;
 
   private loopTimer: number | null = null;
   private arpeggioTimer: number | null = null;
@@ -279,6 +284,60 @@ class SoundEngine {
     this.voiceStop = null;
   }
 
+  /** The supplied opening track begins only after confirming the headphone page. */
+  public startBeginningMusic(): void {
+    this.stopBeginningMusic(0);
+    const session = this.beginningSession;
+    try {
+      const audio = document.getElementById('beginning-music') as HTMLAudioElement | null;
+      if (!audio) return;
+      const ctx = this.ensureContext();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      gain.connect(this.masterGain!);
+      const source = this.mediaSource(audio);
+      source.connect(gain);
+      this.beginningGain = gain;
+      audio.volume = .7;
+      audio.currentTime = 0;
+      audio.loop = true;
+      const cleanup = () => {
+        audio.pause();
+        source.disconnect();
+        gain.disconnect();
+        if (this.beginningGain === gain) this.beginningGain = null;
+      };
+      this.beginningStop = cleanup;
+      audio.play().then(() => {
+        if (session === this.beginningSession) this.fadeGain(gain.gain, 1, 2.8);
+      }).catch(() => {
+        if (session === this.beginningSession) {
+          this.stopBeginningMusic(0);
+          window.dispatchEvent(new Event('breath-away-audio-error'));
+        }
+      });
+    } catch {
+      this.stopBeginningMusic(0);
+      window.dispatchEvent(new Event('breath-away-audio-error'));
+    }
+  }
+
+  public stopBeginningMusic(duration = 1.5): void {
+    this.beginningSession++;
+    const cleanup = this.beginningStop;
+    if (!cleanup) return;
+    this.beginningStop = null;
+    if (duration > 0 && this.ctx && this.beginningGain) {
+      this.fadeGain(this.beginningGain.gain, 0, duration);
+      const timer = window.setTimeout(() => {
+        if (this.beginningStop === stopNow) this.beginningStop = null;
+        cleanup();
+      }, duration * 1000 + 50);
+      const stopNow = () => { window.clearTimeout(timer); cleanup(); };
+      this.beginningStop = stopNow;
+    } else cleanup();
+  }
+
   /** A nearly subliminal maj7 drone, pink breeze and six-second breath. */
   public startPreludeAmbience(): void {
     if (this.isMuted || this.preludeGain) return;
@@ -413,6 +472,52 @@ class SoundEngine {
       });
     } catch {
       // Ignore audio errors if blocked.
+    }
+  }
+
+  /** A quiet plush footfall: a rounded low tap with a little filtered rustle. */
+  public playFootstep(planetId: PlanetId, strength = 1): void {
+    if (this.isMuted || document.hidden) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!this.masterGain || ctx.state !== 'running') return;
+      const now = ctx.currentTime;
+      if (now - this.lastFootstepAt < .16) return;
+      this.lastFootstepAt = now;
+      const weight = Math.max(.35, Math.min(1, strength));
+      const pitch = { OMEGA_01: 145, DELTA_02: 160, SIGMA_03: 180, PSI_04: 135 }[planetId];
+      const frequency = pitch * (.97 + Math.random() * .06);
+      const tap = ctx.createOscillator();
+      const tapGain = ctx.createGain();
+      tap.type = 'sine';
+      tap.frequency.setValueAtTime(frequency, now);
+      tap.frequency.exponentialRampToValueAtTime(frequency * .62, now + .11);
+      tapGain.gain.setValueAtTime(.0001, now);
+      tapGain.gain.linearRampToValueAtTime(.035 * weight, now + .008);
+      tapGain.gain.exponentialRampToValueAtTime(.0001, now + .13);
+      tap.connect(tapGain); tapGain.connect(this.masterGain);
+      tap.onended = () => { tap.disconnect(); tapGain.disconnect(); };
+      tap.start(now); tap.stop(now + .14);
+
+      if (!this.footstepNoise) {
+        this.footstepNoise = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * .16), ctx.sampleRate);
+        const samples = this.footstepNoise.getChannelData(0);
+        for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * .55;
+      }
+      const rustle = ctx.createBufferSource();
+      const filter = ctx.createBiquadFilter();
+      const rustleGain = ctx.createGain();
+      rustle.buffer = this.footstepNoise;
+      rustle.playbackRate.value = .94 + Math.random() * .12;
+      filter.type = 'lowpass'; filter.frequency.value = 1050; filter.Q.value = .45;
+      rustleGain.gain.setValueAtTime(.0001, now);
+      rustleGain.gain.linearRampToValueAtTime(.016 * weight, now + .012);
+      rustleGain.gain.exponentialRampToValueAtTime(.0001, now + .095);
+      rustle.connect(filter); filter.connect(rustleGain); rustleGain.connect(this.masterGain);
+      rustle.onended = () => { rustle.disconnect(); filter.disconnect(); rustleGain.disconnect(); };
+      rustle.start(now); rustle.stop(now + .11);
+    } catch {
+      // Footsteps are decorative; unavailable audio must never block movement.
     }
   }
 
@@ -823,6 +928,7 @@ class SoundEngine {
   }
 
   public stopAllImmediate(): void {
+    this.stopBeginningMusic(0);
     this.stopIntroNarration();
     this.stopPlanetMusicImmediate();
     if (this.preludeGain) {

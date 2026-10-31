@@ -15,7 +15,9 @@ const { installControlledNarration } = require('./interlude-fixture.cjs');
     const snapshot = async selectors => {
       // Compare resting layouts, without a previous click leaving one version
       // hovered and therefore scaled by the intentional interaction animation.
-      await page.mouse.move(0, 0); await page.waitForTimeout(260);
+      await page.mouse.move(0, 0); await page.evaluate(() => document.fonts.ready);
+      // Quiz panels also have a 500ms layout transition after viewport changes.
+      await page.waitForTimeout(600);
       return page.evaluate(selectors => {
       const result = [];
       for (const selector of selectors) document.querySelectorAll(selector).forEach((el, index) => {
@@ -37,6 +39,7 @@ const { installControlledNarration } = require('./interlude-fixture.cjs');
     };
     const layouts = [[320,568], [320,667], [390,844], [414,844], [1280,900]];
     const check = async (name, selectors, sizes = layouts) => {
+      if (process.env.LAYOUT_SCENE && name !== process.env.LAYOUT_SCENE && !name.startsWith(`${process.env.LAYOUT_SCENE}-`)) return;
       for (const [width, height] of sizes) {
         await page.setViewportSize({ width, height }); await page.waitForTimeout(280);
         const english = await snapshot(selectors);
@@ -48,8 +51,12 @@ const { installControlledNarration } = require('./interlude-fixture.cjs');
           // Native text fields scroll their user-entered text horizontally;
           // that is separate from a control or translated button overflowing.
           return r.width && r.height && getComputedStyle(el).visibility !== 'hidden' && (r.left < -1 || r.right > innerWidth + 1 || (el.tagName !== 'INPUT' && el.scrollWidth > el.clientWidth + 2));
-        }).map(el => el.innerText));
+        }).map(el => ({ text: el.innerText, className: el.className, clientWidth: el.clientWidth, scrollWidth: el.scrollWidth, left: el.getBoundingClientRect().left, right: el.getBoundingClientRect().right })));
         assert.deepEqual(overflow, [], `${name}: no control overflows`);
+        if (name.startsWith('quiz-')) {
+          const boxes = await page.locator('.quiz-scene').evaluate(el => [el.querySelector('.quiz-question'), ...el.querySelectorAll('.quiz-options > button'), el.querySelector('.quiz-navigation')].map(node => { const box=node.getBoundingClientRect(); return {top:box.top,bottom:box.bottom}; }));
+          assert.ok(boxes.every((box,index) => index === 0 || box.top >= boxes[index - 1].bottom + 7), `${name}/${width}x${height}: heading, options and Back stay apart: ${JSON.stringify(boxes)}`);
+        }
         if (width === 390) await page.screenshot({ path: `tests/layout-${name}-zh.png` });
         await toggle('EN');
         compare(`${name} round trip`, english, await snapshot(selectors));
@@ -97,10 +104,10 @@ const { installControlledNarration } = require('./interlude-fixture.cjs');
     await b(en.exitGuide.confirm).click();
     await check('leave-action', ['.leave-control'], [[320,667], [390,844]]);
     await b(en.ROAMING_COPY.leaveButton).click();
-    await check('farewell', ['.farewell-scene > div', '.farewell-scene .airbrush-soft-card', '.farewell-scene p', '.farewell-scene button']);
+    await check('farewell', ['.farewell-portrait', '.farewell-copy', '.farewell-title', '.farewell-caption', '.farewell-actions', '.farewell-scene p', '.farewell-scene button']);
     await b(en.another).click(); await b(en.portalDiscovery.spin).waitFor();
     await check('portal', ['.planet-discovery-card', '#planet-discovery-title', '.planet-orbit', '.orbit-planet-name', '.discovery-footer', '.discovery-status', '.discovery-spin', '.discovery-cancel']);
     assert.deepEqual(errors, []);
-    console.log('PASS: 5 viewport sizes, all major scenes and panels, identical font sizes/line heights/weights and control positions; drafts retained.');
+    console.log(`PASS: 5 viewport sizes, ${process.env.LAYOUT_SCENE || 'all major scenes and panels'}, identical font sizes/line heights/weights and control positions; drafts retained.`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

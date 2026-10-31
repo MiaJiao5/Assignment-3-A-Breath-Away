@@ -26,7 +26,7 @@ async function approach(page, objectName, label) {
   await page.mouse.move(x, y); await page.mouse.down();
   try {
     for (let i = 0; i < 240; i++) {
-      const reached = label
+      const reached = typeof label === 'function' ? await page.evaluate(label) : label
         ? await page.getByRole('button', { name: label, exact: true }).isVisible()
         : await page.evaluate(name => window.__navScene.getObjectByName(name).userData.interactions > 0, objectName);
       if (reached) return;

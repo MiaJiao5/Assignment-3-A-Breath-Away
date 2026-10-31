@@ -30,7 +30,22 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       }).observe(document.body,{childList:true,subtree:true});
     });
     await b('Find Your Calm Zone').click(); await b("I'm Ready →").click();
-    await completeQuiz(page); await b(/^Got It,/).click();
+    await completeQuiz(page);
+    await b(/^Got It,/).waitFor();
+    await page.evaluate(async () => {
+      // Vite may attach an HMR timestamp; use the same loaded module instance.
+      const moduleUrl = performance.getEntriesByType('resource').find(entry => new URL(entry.name).pathname === '/src/audio/soundEngine.ts')?.name || '/src/audio/soundEngine.ts';
+      const { soundEngine } = await import(moduleUrl);
+      window.__footsteps = [];
+      const play = soundEngine.playFootstep.bind(soundEngine);
+      soundEngine.playFootstep = (id, strength) => {
+        window.__footsteps.push({ id, strength, time: performance.now() });
+        return play(id, strength);
+      };
+    });
+    await page.keyboard.down('ArrowRight'); await page.waitForTimeout(450); await page.keyboard.up('ArrowRight');
+    assert.equal(await page.evaluate(() => window.__footsteps.length), 0, 'Instructions block walking sounds as well as movement');
+    await b(/^Got It,/).click();
     await installNavigation(page);
     const seen = [], types = new Set();
     for (let visit = 0; visit < 4; visit++) {
@@ -57,8 +72,30 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       await b('中文').click(); await b('EN').click();
       assert.equal(await page.evaluate(() => window.__gardenBeforeLanguage === window.__navScene.getObjectByName('interactive-garden')), true, 'Language switching preserves the biome and interaction state');
       await page.screenshot({ path: `tests/biome-${snapshot.id}.png` });
+      // Visit the real portal first, before resting on this particular planet.
+      // Global Leave access from a previous planet must not unlock this one.
+      await approach(page, 'portal-landmark', () => {
+        const root = window.__navScene.getObjectByName('spirit-surface-root');
+        const portal = window.__navScene.getObjectByName('portal-landmark');
+        return root.position.clone().normalize().angleTo(portal.position.clone().normalize()) < .4;
+      });
+      assert.equal(await b('[ Enter Portal ]').count(), 0, 'No portal action before resting on the current planet');
+      assert.ok(await page.evaluate(id => window.__footsteps.some(step => step.id === id), snapshot.id), 'Actual walking produces footsteps for this planet');
+      // The spring may take a moment to settle after releasing the joystick.
+      await page.waitForTimeout(450);
+      const stoppedSteps = await page.evaluate(() => window.__footsteps.length);
+      await page.waitForTimeout(650);
+      assert.equal(await page.evaluate(() => window.__footsteps.length), stoppedSteps, 'Footsteps stop when actual movement stops');
+      assert.equal(await page.locator('.rest-action').isDisabled(), true, 'Locked portal cannot be activated with keyboard or pointer');
+      assert.equal(await page.evaluate(() => window.__navScene.getObjectByName('listening-beacon').parent.name), 'listening-stone', 'Guidance still points to the stone before resting');
+      await b('中文').click();
+      assert.equal(await b(`[ ${zh.portalDiscovery.enter} ]`).count(), 0, 'Chinese interface also keeps the portal locked');
+      await b('EN').click();
       await approach(page, 'listening-stone', '[ Sit & Listen ]');
       await b('[ Sit & Listen ]').click();
+      const seatedSteps = await page.evaluate(() => window.__footsteps.length);
+      await page.keyboard.down('ArrowRight'); await page.waitForTimeout(700); await page.keyboard.up('ArrowRight');
+      assert.equal(await page.evaluate(() => window.__footsteps.length), seatedSteps, 'Sitting remains silent even if a direction is pressed');
       assert.equal(await b(en.ROAMING_COPY.leaveButton).count(),visit===0?0:1,'Leave stays unlocked on later planets, including while seated');
       await b('[ Stand Up ]').click();
       if(visit===0){
@@ -80,8 +117,10 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       assert.equal(controls.leaveBg, controls.langBg, 'Top-left and top-right glass backgrounds match');
       assert.equal(controls.blur, 'blur(10px)'); assert.equal(controls.border, 'none');
       assert.equal(controls.color, 'rgba(255, 255, 255, 0.85)');
-      if (visit === 3) break;
       await approach(page, 'portal-landmark', '[ Enter Portal ]');
+      assert.equal(await page.evaluate(() => window.__navScene.getObjectByName('listening-beacon').parent.name), 'portal-landmark', 'After resting, guidance leads to the unlocked portal');
+      await page.screenshot({ path: `tests/portal-unlocked-${snapshot.id}.png` });
+      if (visit === 3) break;
       await page.evaluate(() => {
         window.__oldCanvas = document.querySelector('canvas');
         window.__oldGarden = window.__navScene.getObjectByName('interactive-garden');
@@ -104,6 +143,9 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       console.log(`PASS: ${snapshot.id} biome, configured landmarks, glass exit and in-place travel`);
     }
     assert.equal(seen.length, 4); assert.equal(types.size, 12);
+    const steps = await page.evaluate(() => window.__footsteps);
+    assert.equal(new Set(steps.map(step => step.id)).size, 4, 'All four planets have movement sounds');
+    assert.ok(steps.every(step => step.strength > 0), 'Footsteps require actual ground travel');
     assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'Each guide opens once across all four planets and repeated rests');
     await b(en.ROAMING_COPY.leaveButton).click();await b(en.another).click();
     await page.locator('.portal-discovery-overlay[data-phase="complete"]').waitFor();
@@ -112,6 +154,6 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
     await b(en.ROAMING_COPY.leaveButton).waitFor();await b(en.stay).click();
     assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'A new planet circuit does not reset guidance or exit access');
     assert.deepEqual(errors, []);
-    console.log('PASS: four biomes / 12 prop types, exact angles, safe portal switching, one entry guide and one first-stand exit guide, persistent bilingual Leave through repeated rests, all transfers and a new circuit.');
+    console.log('PASS: four biomes, synchronized walking sounds with silence when stopped/seated/reading, per-planet portal locks, stone-to-portal guidance, safe transfers, one-time guides and persistent bilingual Leave.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

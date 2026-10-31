@@ -100,6 +100,7 @@ const { completeQuiz } = require('./navigation.cjs');
  await has(en.ROAMING_COPY.emptyErrorBubble); await toggle('中文'); await has(zh.ROAMING_COPY.emptyErrorBubble); await toggle('EN');
  await input.fill(message); await button(`[ ${en.ROAMING_COPY.releaseButton} ]`).click();
  await has(en.releaseSuccess); await toggle('中文'); await has(zh.releaseSuccess);
+ assert.equal(await page.locator('.feedback-status').count(), 0, 'Successful release adds no visible status bar');
  const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('brief_roaming_user_stardust_v1'))[0]); assert.equal(stored, message);
  await toggle('EN');
  await page.evaluate(async () => {

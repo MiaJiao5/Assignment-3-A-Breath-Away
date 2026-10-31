@@ -73,6 +73,7 @@ export default function App() {
   });
   const [isNearListeningRock, setIsNearListeningRock] = useState<boolean>(false);
   const [isNearPortal, setIsNearPortal] = useState<boolean>(false);
+  const canUsePortal = hasRestedOnPlanet && isNearPortal;
 
   // 星尘文字循环队列（内置 5 条 + 本地持久化用户心情）
   const [userQuotes, setUserQuotes] = useState<string[]>(() => {
@@ -193,8 +194,13 @@ export default function App() {
 
   const handleInterludeContinue = useCallback(() => {
     soundEngine.stopIntroNarration();
+    soundEngine.startBeginningMusic();
     setAct('quiz');
   }, []);
+
+  useEffect(() => {
+    if (act !== 'quiz') soundEngine.stopBeginningMusic(act === 'warp' ? 1.5 : .6);
+  }, [act]);
 
   // 【第二幕】回答三步心境校准问卷
   const handleSelectOption = (choice: QuizChoice) => {
@@ -383,7 +389,7 @@ export default function App() {
   }, []);
 
   const handleEnterPortal = () => {
-    if (isRestingRef.current || isGuideOpenRef.current || !isNearPortal || isPortalModalOpen) return;
+    if (isRestingRef.current || isGuideOpenRef.current || !canUsePortal || isPortalModalOpen) return;
     stopMovement();
     setSpiritPose('idle');
     soundEngine.playWarpTransition();
@@ -395,7 +401,7 @@ export default function App() {
     if (landmark === 'rock') {
       if (isNearListeningRock) restActionRef.current?.focus();
       else triggerOverheadBubble('', false, 3000, 'stoneGuide');
-    } else if (isNearPortal) {
+    } else if (canUsePortal) {
       restActionRef.current?.focus();
     }
   };
@@ -445,6 +451,7 @@ export default function App() {
 
       {/* Optional MP3 target. Configure PLANET_AUDIO_URLS in roamingData.ts. */}
       <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
+      <audio id="beginning-music" src="/audio/beginning-music.mp3" preload="auto" className="hidden" />
       {/* Optional /audio/voice_en.mp3 and /audio/voice_zh.mp3 are configured in
           audio/introVoice.ts. No src is set while recordings are unavailable. */}
       <audio id="intro-voice-en" preload="none" className="hidden" />
@@ -599,15 +606,15 @@ export default function App() {
 
             <div
               key={QUIZ_QUESTIONS[quizStep].id}
-              className="w-full max-w-[348px] my-auto flex flex-col gap-5 transition-all duration-500"
+              className="quiz-body w-full max-w-[348px]"
             >
               <div className="quiz-question px-1 py-2 text-center">
-                <h2 className="font-serif-soft text-[23px] leading-snug font-medium">
+                <h2 className="font-serif-soft text-[30px] leading-snug font-medium">
                   <BilingualText className="bilingual-block" select={c => c.QUIZ_QUESTIONS[quizStep].question} />
                 </h2>
               </div>
 
-              <div className="quiz-options flex flex-col gap-5">
+              <div className="quiz-options">
                 {QUIZ_QUESTIONS[quizStep].options.map((option, optionIndex) => (
                   <button
                     key={option.value}
@@ -619,16 +626,16 @@ export default function App() {
                       handleSelectOption(option.value);
                     }}
                     aria-pressed={quizAnswers[quizStep] === option.value}
-                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[14px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
+                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[18px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
                   >
-                    <span className="text-[25px] leading-none shrink-0" aria-hidden="true">{option.emoji}</span>
+                    <span className="text-[30px] leading-none shrink-0" aria-hidden="true">{option.emoji}</span>
                     <BilingualText select={c => c.QUIZ_QUESTIONS[quizStep].options[optionIndex].label} />
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="quiz-navigation flex justify-center text-xs my-3">
+            <div className="quiz-navigation flex justify-center text-[15px] my-3">
               <button type="button" onClick={() => {
                 if (quizStep > 0) setQuizStep(quizStep - 1);
                 else setAct('interlude');
@@ -715,7 +722,7 @@ export default function App() {
 
             </div>
 
-            <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? <BilingualText className="bilingual-block" select={c => c[feedback]} /> : null}</p>
+            <p role="status" className={feedback === 'audioError' ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? <BilingualText className="bilingual-block" select={c => c[feedback]} /> : null}</p>
             {/* 底部可折叠控制器与树洞倾诉栏 (Collapsible Bottom Control Dock) */}
             <div className={`planet-control-dock relative z-30 px-4 pb-4 flex flex-col items-center ${spiritPose !== 'sitting' ? 'is-wandering' : ''}`}>
               <div className="w-full flex flex-col gap-2">
@@ -723,15 +730,15 @@ export default function App() {
                   <button
                     ref={restActionRef}
                     type="button"
-                    onClick={spiritPose !== 'sitting' && isNearPortal ? handleEnterPortal : handleSitAndListen}
+                    onClick={spiritPose !== 'sitting' && canUsePortal ? handleEnterPortal : handleSitAndListen}
                     style={softPillStyle}
                     className="rest-action flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-medium text-slate-800 cursor-pointer"
-                    data-visible={!isHelpOpen && !isPortalModalOpen && (spiritPose === 'sitting' || isNearListeningRock || isNearPortal)}
-                    aria-hidden={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !isNearPortal)}
-                    disabled={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !isNearPortal)}
+                    data-visible={!isHelpOpen && !isPortalModalOpen && (spiritPose === 'sitting' || isNearListeningRock || canUsePortal)}
+                    aria-hidden={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !canUsePortal)}
+                    disabled={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !canUsePortal)}
                   >
-                    <span aria-hidden="true">{spiritPose === 'sitting' ? '🐾' : isNearPortal ? '🌀' : '🪑'}</span>
-                    <BilingualText select={c => `[ ${spiritPose === 'sitting' ? c.ROAMING_COPY.standUpButton : isNearPortal ? c.portalDiscovery.enter : c.ROAMING_COPY.sitButton} ]`} />
+                    <span aria-hidden="true">{spiritPose === 'sitting' ? '🐾' : canUsePortal ? '🌀' : '🪑'}</span>
+                    <BilingualText select={c => `[ ${spiritPose === 'sitting' ? c.ROAMING_COPY.standUpButton : canUsePortal ? c.portalDiscovery.enter : c.ROAMING_COPY.sitButton} ]`} />
                   </button>
                 </div>
                 <BottomPlanetController
@@ -779,38 +786,33 @@ export default function App() {
 
         {/* ================= 第四幕：右上角告别闭环画面 ================= */}
         {act === 'farewell' && (
-          <section className="farewell-scene relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10 text-center">
-            <div className="mt-2">
-              <p
-                className="text-xs tracking-[0.2em] opacity-75"
-                style={{ color: currentColors.textSecondary }}
-              >
-                <BilingualText select={c => c.farewellHeading} />
-              </p>
-            </div>
-
-            <div className="my-auto flex flex-col items-center">
+          <section className="farewell-scene relative z-20 flex-1 text-center" style={{
+            '--farewell-cloud': currentColors.blob2,
+            '--farewell-dusk': currentColors.blob3,
+            '--farewell-starlight': currentColors.planetCore,
+            '--farewell-spark': currentColors.blob1,
+          } as React.CSSProperties}>
+            <div className="farewell-nebula" aria-hidden="true"><span /><span /><span /></div>
+            <p className="farewell-kicker"><BilingualText select={c => c.farewellHeading} /></p>
+            <div className="farewell-portrait">
               <FluffySpirit
                 pose="waving"
                 onTapSpirit={() => soundEngine.playSpiritChime()}
               />
-
-              <div className="airbrush-soft-card mt-6 px-6 py-6 rounded-[32px] max-w-[330px]">
-                <p className="font-serif-soft text-[16px] leading-relaxed font-medium text-slate-800">
-                  <BilingualText className="bilingual-block" select={c => c.farewellMiddle} /><br /><BilingualText className="bilingual-block" select={c => c.farewellEnd} />
-                </p>
-              </div>
             </div>
-
-            <div className="w-full flex flex-col items-center justify-center gap-3">
+            <div className="farewell-copy">
+              <h2 className="farewell-title"><BilingualText className="bilingual-block" select={c => c.farewellMiddle} /></h2>
+              <p className="farewell-caption"><BilingualText className="bilingual-block" select={c => c.farewellEnd} /></p>
+            </div>
+            <div className="farewell-actions">
               <button
                 type="button"
                 onClick={handleRestartAll}
-                className="airbrush-pill-btn w-full max-w-[280px] py-4 px-6 rounded-full text-[15px] font-medium tracking-wider text-slate-800 cursor-pointer whitespace-nowrap"
+                className="farewell-primary airbrush-pill-btn rounded-full"
               >
                 <BilingualText select={c => c.calm} />
               </button>
-              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}><BilingualText select={c => c.another} /></button>
+              <button type="button" className="farewell-secondary" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}><BilingualText select={c => c.another} /> <span aria-hidden="true">→</span></button>
             </div>
           </section>
         )}

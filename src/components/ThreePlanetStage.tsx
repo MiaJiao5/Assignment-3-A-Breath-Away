@@ -6,6 +6,7 @@ import { PLANETS, PlanetId, surfaceCoordinates } from '../data/roamingData';
 import { OverheadBubbleData, SpiritPose } from './FluffySpirit';
 import { createPlanetGarden } from './PlanetBiomeGarden';
 import { BilingualText } from '../i18n/BilingualText';
+import { soundEngine } from '../audio/soundEngine';
 
 export interface JoystickVector {
   x: number; // -1 (left) to +1 (right)
@@ -500,12 +501,12 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const guidance = new THREE.Group();
     guidance.name = 'listening-guide';
     planetPivot.add(guidance);
-    const guideMaterial = new THREE.MeshBasicMaterial({ color: 0xffe7bd, transparent: true, opacity: 0.56, depthWrite: false });
-    const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xfff3de, transparent: true, opacity: 0.07, depthWrite: false });
+    const guideMaterial = new THREE.MeshBasicMaterial({ color: 0xffd58a, transparent: true, opacity: 0.74, depthWrite: false });
+    const glowMaterial = new THREE.MeshBasicMaterial({ color: 0xffe5b5, transparent: true, opacity: 0.14, depthWrite: false });
     const guideCore = new THREE.Mesh(new THREE.BufferGeometry(), guideMaterial);
     const guideGlow = new THREE.Mesh(new THREE.BufferGeometry(), glowMaterial);
     guidance.add(guideCore, guideGlow);
-    const guideSpark = new THREE.Mesh(new THREE.SphereGeometry(0.022, 12, 8), guideMaterial);
+    const guideSpark = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 8), guideMaterial);
     guidance.add(guideSpark);
     const beacon = new THREE.Mesh(new THREE.TorusGeometry(0.38, 0.01, 8, 40, Math.PI), guideMaterial);
     beacon.name = 'listening-beacon';
@@ -532,8 +533,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       guideCurve = new THREE.CatmullRomCurve3(points);
       guideCore.geometry.dispose();
       guideGlow.geometry.dispose();
-      guideCore.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.008, 5, false);
-      guideGlow.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.024, 5, false);
+      guideCore.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.011, 5, false);
+      guideGlow.geometry = new THREE.TubeGeometry(guideCurve, 40, 0.03, 5, false);
     };
 
     // =========================================================================
@@ -1013,6 +1014,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const clock = new THREE.Clock();
     let frameId = 0;
     let walkPhase = 0;
+    let lastFootstepBeat = 0;
     let currentYaw = 0;
     let targetYaw = 0;
     let blinkTimer = 0;
@@ -1134,6 +1136,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const travelX = planetCoordsRef.current.lon - previousWalkCoords.lon;
       const travelZ = planetCoordsRef.current.lat - previousWalkCoords.lat;
       const travelAngle = Math.hypot(travelX, travelZ);
+      let actualTravel = 0;
       if (!movementLocked) {
         frameInverse.copy(walkingFrame).invert();
         candidateFrame.copy(walkingFrame);
@@ -1165,6 +1168,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
           for (const obstacle of garden.obstacles) keepClear(obstacle.normal, 2 * Math.asin((.25 + obstacle.radius + .035) / (2 * PLANET_RADIUS)));
         }
         acceptedStep.copy(frameInverse).multiply(candidateFrame).normalize();
+        actualTravel = acceptedStep.angleTo(identityRotation) * PLANET_RADIUS;
         counterStep.copy(acceptedStep).invert().slerp(identityRotation, 0.55);
         planetStep.copy(walkingFrame).multiply(counterStep).multiply(frameInverse);
         planetPivot.quaternion.multiply(planetStep).normalize();
@@ -1174,6 +1178,14 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       previousWalkCoords.lat = planetCoordsRef.current.lat;
       spiritRoot.quaternion.copy(walkingFrame);
       spiritRoot.position.set(0, PLANET_RADIUS, 0).applyQuaternion(walkingFrame);
+      // Landings follow the same phase as the visible steps, after collisions
+      // have resolved. Holding a direction against an obstacle stays silent.
+      const footstepBeat = Math.floor(walkPhase / Math.PI);
+      const actualSpeed = actualTravel / Math.max(dt, .001);
+      if (footstepBeat !== lastFootstepBeat && isMoving && !movementLocked && actualSpeed > .035) {
+        soundEngine.playFootstep(stateRef.current.planetId, actualSpeed / 2.1);
+      }
+      lastFootstepBeat = footstepBeat;
       garden.update(elapsed, Math.min(rawDt, .1), spiritRoot, isMoving, !movementLocked, reducedMotion.matches, camera);
 
       const nextDestination = stateRef.current.guideToPortal ? 'portal' : 'rock';
@@ -1190,7 +1202,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       if (guidance.visible) {
         if (guideStart.distanceToSquared(spiritRoot.position) > 0.0009) updateGuide(spiritRoot.position);
         guideCurve?.getPoint((elapsed * 0.3) % 1, guideSpark.position);
-        glowMaterial.opacity = 0.07 + Math.sin(elapsed * 1.6) * 0.015;
+        glowMaterial.opacity = 0.14 + Math.sin(elapsed * 1.6) * 0.02;
         beacon.scale.setScalar(1 + Math.sin(elapsed * 1.8) * 0.04);
       }
 
@@ -1221,7 +1233,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const nearRock = dRock < (lastNearRock ? 0.46 : 0.38);
       const nearPortal = dPortal < (lastNearPortal ? 0.48 : 0.42);
       const nearDestination = guideDestination === 'portal' ? nearPortal : nearRock;
-      guideMaterial.opacity = THREE.MathUtils.damp(guideMaterial.opacity, nearDestination ? 0.76 : 0.56, 5, dt);
+      guideMaterial.opacity = THREE.MathUtils.damp(guideMaterial.opacity, nearDestination ? 0.9 : 0.74, 5, dt);
       stoneBaseMat.emissiveIntensity = THREE.MathUtils.damp(stoneBaseMat.emissiveIntensity, nearRock ? 0.28 : 0.03, 5, dt);
       seatCushionMat.emissiveIntensity = THREE.MathUtils.damp(seatCushionMat.emissiveIntensity, nearRock ? 0.2 : 0.03, 5, dt);
       lanternMat.emissiveIntensity = THREE.MathUtils.damp(lanternMat.emissiveIntensity, nearRock ? 1.2 : 0.85, 5, dt);

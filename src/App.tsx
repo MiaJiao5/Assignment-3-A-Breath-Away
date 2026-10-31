@@ -18,6 +18,7 @@ import { ExitGuide } from './components/ExitGuide';
 import { PlanetDiscovery } from './components/PlanetDiscovery';
 import { BreathingAuraOrb } from './components/BreathingAuraOrb';
 import { IntroInterlude } from './components/IntroInterlude';
+import { BilingualText } from './i18n/BilingualText';
 
 type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
@@ -25,14 +26,14 @@ interface FloatingStardustItem {
   id: number;
   text: string;
   builtinIndex?: number;
-  topPercent: number;
+  lane: number;
 }
 
 const LOCAL_STORAGE_KEY = 'brief_roaming_user_stardust_v1';
 
 export default function App() {
   const { copy } = useLanguage();
-  const { INTRO_COPY, QUIZ_QUESTIONS, ROAMING_COPY, BUILTIN_STARDUST_QUOTES } = copy;
+  const { QUIZ_QUESTIONS, ROAMING_COPY, BUILTIN_STARDUST_QUOTES } = copy;
   const [feedback, setFeedback] = useState<'releaseSuccess' | 'audioError' | null>(null);
   const [act, setAct] = useState<AppAct>('intro');
   const [quizStep, setQuizStep] = useState<number>(0);
@@ -89,6 +90,18 @@ export default function App() {
   const [floatingStardust, setFloatingStardust] = useState<FloatingStardustItem[]>([]);
   const quoteCursorRef = useRef<number>(0);
 
+  const spawnStardust = useCallback((text: string, builtinIndex?: number) => {
+    const id = Date.now() + Math.random();
+    const laneCount = window.matchMedia('(max-height: 740px)').matches ? 1 : 2;
+    setFloatingStardust(previous => {
+      const lane = Array.from({ length: laneCount }, (_, index) => index)
+        .find(index => !previous.some(item => item.lane === index));
+      // An occupied lane belongs to its current thought until animationend.
+      // Incoming thoughts never evict a visible one or move another row.
+      return lane === undefined ? previous : [...previous, { id, text, builtinIndex, lane }];
+    });
+  }, []);
+
   // 树洞输入与头顶气泡
   const [moodInput, setMoodInput] = useState<string>('');
   const [overheadBubble, setOverheadBubble] = useState<OverheadBubbleData | null>(null);
@@ -114,36 +127,26 @@ export default function App() {
     const allQuotes = [...userQuotes, ...BUILTIN_STARDUST_QUOTES];
     if (allQuotes.length === 0) return;
 
-    const spawnStardust = (customText?: string) => {
+    const spawnNextThought = () => {
       const cursor = quoteCursorRef.current % allQuotes.length;
-      const builtinIndex = !customText && cursor >= userQuotes.length ? cursor - userQuotes.length : undefined;
-      const text =
-        customText ?? allQuotes[quoteCursorRef.current % allQuotes.length];
-      if (!customText) {
-        quoteCursorRef.current += 1;
-      }
-
-      const id = Date.now() + Math.random();
-      // Three separate sky lanes keep simultaneous, slow-moving thoughts from
-      // touching vertically while their 24-second animations overlap.
-      const topPercent = 4 + (cursor % 3) * 33;
-
-      setFloatingStardust((prev) => [...prev.slice(-3), { id, text, builtinIndex, topPercent }]);
+      const builtinIndex = cursor >= userQuotes.length ? cursor - userQuotes.length : undefined;
+      spawnStardust(allQuotes[cursor], builtinIndex);
+      quoteCursorRef.current += 1;
     };
 
     const initialTimer = window.setTimeout(() => {
-      spawnStardust();
+      spawnNextThought();
     }, 3000);
 
     const interval = window.setInterval(() => {
-      spawnStardust();
+      spawnNextThought();
     }, 10000);
 
     return () => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [act, isMusicPlaying, userQuotes]);
+  }, [act, isMusicPlaying, userQuotes, spawnStardust]);
 
   useEffect(() => {
     const onAudioError = () => setFeedback('audioError');
@@ -210,13 +213,6 @@ export default function App() {
       soundEngine.liftPreludeForWarp();
       soundEngine.playWarpTransition();
     }
-  };
-
-  const handleSkipQuiz = () => {
-    setPlanetId(calculateAssignedPlanet(quizAnswers));
-    soundEngine.liftPreludeForWarp();
-    soundEngine.playWarpTransition();
-    setAct('warp');
   };
 
   useEffect(() => {
@@ -322,15 +318,7 @@ export default function App() {
     }
 
     // 3. 立即在背景光晕中也生成一缕星尘飘起
-    const id = Date.now() + Math.random();
-    setFloatingStardust((prev) => [
-      ...prev.slice(-5),
-      {
-        id,
-        text: trimmed,
-        topPercent: 4 + (quoteCursorRef.current++ % 3) * 33,
-      },
-    ]);
+    spawnStardust(trimmed);
   };
 
   // 通过【🌀 传送门】切换体验另外 3 个星球
@@ -341,15 +329,15 @@ export default function App() {
     setHasRestedOnPlanet(false);
     stopMovement();
     setSpiritPose('idle');
-    isGuideOpenRef.current = true;
-    setIsGuideOpen(true);
+    // Instructions belong to the first arrival after the questionnaire.
+    // Transfers keep instructions dismissed and retain the unlocked Leave action.
 
     if (isMusicPlaying) {
       try { soundEngine.startPlanetMusic(nextPlanetId); } catch { setFeedback('audioError'); }
     }
   };
 
-  // 点击右上角 [ 👋 先去忙啦 ] 进入告别闭环
+  // The top-left Leave action opens the farewell scene.
   const handleLeaveToFarewell = () => {
     if (!canLeave || act !== 'roaming') return;
     isRestingRef.current = false;
@@ -540,7 +528,7 @@ export default function App() {
         )}
         {act === 'roaming' && canLeave && (
           <button type="button" onClick={handleLeaveToFarewell} className="leave-control">
-            {ROAMING_COPY.leaveButton}
+            <BilingualText select={c => c.ROAMING_COPY.leaveButton} />
           </button>
         )}
         <header inert={isHelpOpen || isPortalModalOpen} className={`app-header relative z-30 flex flex-wrap items-center justify-between gap-2 px-5 pt-4 pb-1 ${act === 'roaming' ? 'planet-header' : ''}`}>
@@ -549,7 +537,7 @@ export default function App() {
               className="text-xs font-medium tracking-widest opacity-85"
               style={{ color: currentColors.textSecondary }}
             >
-              {act === 'roaming' ? activePlanet.fullName : null}
+              {act === 'roaming' ? <BilingualText select={c => c.planets[planetId].fullName} /> : null}
             </span>
           </div>
 
@@ -559,15 +547,13 @@ export default function App() {
         {act === 'intro' && (
           <section className="intro-scene relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10">
             <div className="intro-title-slot text-center mt-4">
-              <h1 className="intro-title" data-script={copy.title.split(' ').length === 3} aria-label={copy.title}>
-                {copy.title.split(' ').length === 3
-                  ? copy.title.split(' ').map((word, index) => (
+              <h1 className="intro-title" lang="en" data-script="true" aria-label={copy.title}>
+                {copy.title.split(' ').map((word, index) => (
                     <React.Fragment key={word}>
-                      <span className={`intro-title-line intro-title-line-${index + 1}`} aria-hidden="true">{word}</span>
+                      <span className={`intro-title-line intro-title-line-${index + 1}`} aria-hidden="true"><span className="intro-title-capital">{word[0]}</span>{word.slice(1)}</span>
                       {index < 2 ? ' ' : null}
                     </React.Fragment>
-                  ))
-                  : <span className="intro-title-localized" aria-hidden="true">{copy.title}</span>}
+                  ))}
               </h1>
             </div>
 
@@ -581,7 +567,7 @@ export default function App() {
                 onClick={handleStartRoaming}
                 className="escape-cloud-button w-full max-w-[310px] py-4 px-6 text-[15px] font-medium tracking-wide cursor-pointer"
               >
-                {INTRO_COPY.startButton}
+                <BilingualText select={c => c.INTRO_COPY.startButton} />
               </button>
             </div>
           </section>
@@ -617,12 +603,12 @@ export default function App() {
             >
               <div className="quiz-question px-1 py-2 text-center">
                 <h2 className="font-serif-soft text-[23px] leading-snug font-medium">
-                  {QUIZ_QUESTIONS[quizStep].question}
+                  <BilingualText className="bilingual-block" select={c => c.QUIZ_QUESTIONS[quizStep].question} />
                 </h2>
               </div>
 
               <div className="quiz-options flex flex-col gap-5">
-                {QUIZ_QUESTIONS[quizStep].options.map((option) => (
+                {QUIZ_QUESTIONS[quizStep].options.map((option, optionIndex) => (
                   <button
                     key={option.value}
                     type="button"
@@ -636,21 +622,18 @@ export default function App() {
                     className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[14px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
                   >
                     <span className="text-[25px] leading-none shrink-0" aria-hidden="true">{option.emoji}</span>
-                    <span className="min-w-0 flex-1">{option.label}</span>
+                    <BilingualText select={c => c.QUIZ_QUESTIONS[quizStep].options[optionIndex].label} />
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="flex flex-wrap justify-center gap-4 text-xs my-3">
+            <div className="quiz-navigation flex justify-center text-xs my-3">
               <button type="button" onClick={() => {
                 if (quizStep > 0) setQuizStep(quizStep - 1);
                 else setAct('interlude');
               }}>
-                {copy.back}
-              </button>
-              <button type="button" onClick={handleSkipQuiz}>
-                {copy.skip}
+                <BilingualText select={c => c.back} />
               </button>
             </div>
           </section>
@@ -664,7 +647,9 @@ export default function App() {
             </div>
             <div className="px-7 py-6 max-w-[330px]">
               <p className="text-[15px] leading-relaxed font-medium tracking-wide">
-                {copy.gathering}<br />{copy.tuning}<br />{activePlanet.fullName}
+                <BilingualText className="bilingual-block" select={c => c.gathering} />
+                <BilingualText className="bilingual-block" select={c => c.tuning} />
+                <BilingualText className="bilingual-block" select={c => c.planets[planetId].fullName} />
               </p>
             </div>
           </section>
@@ -681,7 +666,7 @@ export default function App() {
                 className="text-xs leading-relaxed opacity-85"
                 style={{ color: currentColors.textSecondary }}
               >
-                {spiritPose === 'sitting' ? copy.restHint : hasRestedOnPlanet ? (isNearPortal ? copy.portalArrived : copy.portalGuide) : (isNearListeningRock ? copy.stoneArrived : copy.stoneGuide)}
+                <BilingualText className="bilingual-block" select={c => spiritPose === 'sitting' ? c.restHint : hasRestedOnPlanet ? (isNearPortal ? c.portalArrived : c.portalGuide) : (isNearListeningRock ? c.stoneArrived : c.stoneGuide)} />
               </p>
 
             </div>
@@ -694,19 +679,20 @@ export default function App() {
                 {floatingStardust.map((item) => (
                   <div
                     key={item.id}
-                    className="animate-stardust-float absolute left-0 max-w-[260px] px-4 py-1.5 rounded-full"
+                    className="animate-stardust-float stardust-thought px-4 py-1.5 rounded-full"
+                    data-lane={item.lane}
                     onAnimationEnd={() => setFloatingStardust(prev => prev.filter(quote => quote.id !== item.id))}
                     style={
                       {
-                        top: `${item.topPercent}%`,
+                        '--stardust-lane': item.lane,
                         background:
-                          'radial-gradient(circle, rgba(255,255,255,0.82) 0%, rgba(255,255,255,0.35) 82%, transparent 100%)',
-                        boxShadow: '0 0 22px 6px rgba(255,255,255,0.52)',
+                          'radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 82%, transparent 100%)',
+                        boxShadow: '0 0 16px 3px rgba(255,255,255,0.12)',
                       } as React.CSSProperties
                     }
                   >
-                    <p className="text-xs text-slate-700 font-medium leading-relaxed text-center whitespace-pre-wrap break-words">
-                      {item.builtinIndex === undefined ? item.text : BUILTIN_STARDUST_QUOTES[item.builtinIndex]}
+                    <p className="text-xs font-medium leading-[18px] text-center whitespace-pre-wrap break-words" style={{ color: currentColors.textPrimary }}>
+                      {item.builtinIndex === undefined ? item.text : <BilingualText className="bilingual-block" select={c => c.BUILTIN_STARDUST_QUOTES[item.builtinIndex!]} />}
                     </p>
                   </div>
                 ))}
@@ -729,9 +715,9 @@ export default function App() {
 
             </div>
 
-            <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? copy[feedback] : null}</p>
+            <p role="status" className={feedback ? "feedback-status relative z-30 text-center text-xs" : "sr-only"}>{feedback ? <BilingualText className="bilingual-block" select={c => c[feedback]} /> : null}</p>
             {/* 底部可折叠控制器与树洞倾诉栏 (Collapsible Bottom Control Dock) */}
-            <div className="relative z-30 px-4 pb-4 flex flex-col items-center">
+            <div className={`planet-control-dock relative z-30 px-4 pb-4 flex flex-col items-center ${spiritPose !== 'sitting' ? 'is-wandering' : ''}`}>
               <div className="w-full flex flex-col gap-2">
                 <div className="rest-action-slot">
                   <button
@@ -745,7 +731,7 @@ export default function App() {
                     disabled={isHelpOpen || isPortalModalOpen || (spiritPose !== 'sitting' && !isNearListeningRock && !isNearPortal)}
                   >
                     <span aria-hidden="true">{spiritPose === 'sitting' ? '🐾' : isNearPortal ? '🌀' : '🪑'}</span>
-                    <span>[ {spiritPose === 'sitting' ? ROAMING_COPY.standUpButton : isNearPortal ? copy.portalDiscovery.enter : ROAMING_COPY.sitButton} ]</span>
+                    <BilingualText select={c => `[ ${spiritPose === 'sitting' ? c.ROAMING_COPY.standUpButton : isNearPortal ? c.portalDiscovery.enter : c.ROAMING_COPY.sitButton} ]`} />
                   </button>
                 </div>
                 <BottomPlanetController
@@ -757,7 +743,7 @@ export default function App() {
                   <div className="message-slot">
                     {isMessageReady && (
                       <div className="message-panel flex flex-col gap-2">
-                        <h2 className="text-xs text-center">{copy.inputTitle}</h2>
+                        <h2 className="text-xs text-center"><BilingualText select={c => c.inputTitle} /></h2>
                         {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
                         <form aria-label={copy.releaseBubble}
                           onSubmit={handleReleaseMood}
@@ -778,7 +764,7 @@ export default function App() {
                             style={softPillStyle}
                             className="px-4 py-1.5 rounded-full text-xs font-medium text-slate-800 cursor-pointer whitespace-nowrap shrink-0"
                           >
-                            [ {ROAMING_COPY.releaseButton} ]
+                            <BilingualText select={c => `[ ${c.ROAMING_COPY.releaseButton} ]`} />
                           </button>
                         </form>
                       </div>
@@ -793,13 +779,13 @@ export default function App() {
 
         {/* ================= 第四幕：右上角告别闭环画面 ================= */}
         {act === 'farewell' && (
-          <section className="relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10 text-center">
+          <section className="farewell-scene relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10 text-center">
             <div className="mt-2">
               <p
                 className="text-xs tracking-[0.2em] opacity-75"
                 style={{ color: currentColors.textSecondary }}
               >
-                {copy.farewellHeading}
+                <BilingualText select={c => c.farewellHeading} />
               </p>
             </div>
 
@@ -811,7 +797,7 @@ export default function App() {
 
               <div className="airbrush-soft-card mt-6 px-6 py-6 rounded-[32px] max-w-[330px]">
                 <p className="font-serif-soft text-[16px] leading-relaxed font-medium text-slate-800">
-                  {copy.farewellMiddle}<br /><br />{copy.farewellEnd}
+                  <BilingualText className="bilingual-block" select={c => c.farewellMiddle} /><br /><BilingualText className="bilingual-block" select={c => c.farewellEnd} />
                 </p>
               </div>
             </div>
@@ -822,9 +808,9 @@ export default function App() {
                 onClick={handleRestartAll}
                 className="airbrush-pill-btn w-full max-w-[280px] py-4 px-6 rounded-full text-[15px] font-medium tracking-wider text-slate-800 cursor-pointer whitespace-nowrap"
               >
-                {copy.calm}
+                <BilingualText select={c => c.calm} />
               </button>
-              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
+              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}><BilingualText select={c => c.another} /></button>
             </div>
           </section>
         )}

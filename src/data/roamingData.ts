@@ -53,6 +53,15 @@ export interface PlanetConfig {
   biome: PlanetBiome;
   props: BiomePropConfig[];
   landmarks: { stone: SurfaceLocation; portal: SurfaceLocation };
+  /** Tonal portal layers follow the globe, with a darker center for contrast. */
+  portalColors: {
+    base: string;
+    frame: string;
+    glow: string;
+    center: string;
+    ribbon: string;
+    light: string;
+  };
   colors: {
     canvasBg: string;
     outerDesktopBg: string;
@@ -101,6 +110,7 @@ export const PLANETS: Record<PlanetId, PlanetConfig> = {
       { type: 'berryBush', angle: 330, latitude: -15, scale: .8, colors: AUTUMN },
     ],
     landmarks: { stone: { angle: 55, latitude: 4 }, portal: { angle: 180, latitude: -4 } },
+    portalColors: { base: '#C78A65', frame: '#E8B18E', glow: '#EF8953', center: '#A45645', ribbon: '#FFD166', light: '#FFF0CF' },
     colors: {
       canvasBg: 'linear-gradient(155deg, #C77065 0%, #D88A54 46%, #A85479 100%)',
       outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #D3916E, #70445D 85%)',
@@ -132,6 +142,7 @@ export const PLANETS: Record<PlanetId, PlanetConfig> = {
       { type: 'mintMushroom', angle: 305, latitude: -12, scale: .8, colors: FOREST },
     ],
     landmarks: { stone: { angle: 95, latitude: 4 }, portal: { angle: 220, latitude: -4 } },
+    portalColors: { base: '#699F8E', frame: '#8DC5AC', glow: '#4ECDC4', center: '#347D70', ribbon: '#A8E6CF', light: '#E8F8CE' },
     colors: {
       canvasBg: 'linear-gradient(155deg, #205D56 0%, #348578 48%, #3D6B73 100%)',
       outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #518A77, #203E47 85%)',
@@ -162,6 +173,7 @@ export const PLANETS: Record<PlanetId, PlanetConfig> = {
       { type: 'dandelion', angle: 315, latitude: -10, scale: .85, colors: SKY },
     ],
     landmarks: { stone: { angle: 75, latitude: 4 }, portal: { angle: 145, latitude: -4 } },
+    portalColors: { base: '#758EB9', frame: '#9EBAE2', glow: '#89CFF0', center: '#486DAA', ribbon: '#C3B1E1', light: '#EFF7FF' },
     colors: {
       canvasBg: 'linear-gradient(155deg, #294CAB 0%, #4662C4 45%, #6654A9 100%)',
       outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #5971B9, #27355E 85%)',
@@ -193,6 +205,7 @@ export const PLANETS: Record<PlanetId, PlanetConfig> = {
       { type: 'moonReed', angle: 325, latitude: 12, scale: .85, colors: STARSEA },
     ],
     landmarks: { stone: { angle: 105, latitude: 4 }, portal: { angle: 295, latitude: -4 } },
+    portalColors: { base: '#8376A7', frame: '#B59BDC', glow: '#9B72CF', center: '#51457E', ribbon: '#B5DCEF', light: '#FFE6B5' },
     colors: {
       canvasBg: 'linear-gradient(155deg, #211B50 0%, #33246A 48%, #612D68 100%)',
       outerDesktopBg: 'radial-gradient(circle at 50% 50%, #312E81 0%, #4C1D95 50%, #1E1B4B 100%)',

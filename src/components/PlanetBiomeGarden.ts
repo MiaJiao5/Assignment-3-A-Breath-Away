@@ -117,7 +117,7 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
       const sway = reducedMotion ? 0 : Math.sin(time * 1.6 + i) * (.015 + cluster.energy * .1);
       cluster.crown.rotation.set(sway * .25, heading, sway);
       const bounce = reducedMotion ? 0 : Math.sin((1 - cluster.energy) * Math.PI * 3) * cluster.energy;
-      cluster.crown.scale.setScalar(1 + (config.biome.id === 'forest' ? bounce * .14 : cluster.energy * .08));
+      cluster.crown.scale.setScalar(1 + (reducedMotion ? 0 : cluster.energy * .17 + Math.max(0, bounce) * .06));
       cluster.crown.position.y = config.biome.id === 'sky' && !reducedMotion ? Math.sin(time * 1.1 + i) * .016 + cluster.energy * .035 : 0;
       const pulse = reducedMotion ? cluster.energy : cluster.energy * (.55 + .45 * Math.sin((time - cluster.lastTriggered) * 5));
       cluster.glowMat.opacity = .12 + pulse * (config.biome.id === 'starsea' ? .65 : .18);
@@ -166,5 +166,12 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
     textures.forEach(texture => texture.dispose());
     propMaterials.clear(); garden.removeFromParent();
   }
-  return { update, dispose };
+  // Solid roots have a small personal-space boundary; the outer proximity
+  // trigger remains reachable without walking through the illustrated crown.
+  const obstacles = clusters.map(cluster => ({
+    normal: cluster.normal,
+    radius: .15 + cluster.root.scale.x * .055,
+  }));
+  const framingMeshes = clusters.map(cluster => cluster.crown.children[0] as THREE.Mesh);
+  return { update, dispose, obstacles, framingMeshes };
 }

@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { completeQuiz } = require('./navigation.cjs');
 
 (async () => {
   const browser = await chromium.launch({
@@ -12,9 +13,9 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     page.on('pageerror', error => errors.push(error.message));
     const button = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://localhost:3000');
-    await button('Begin Your Little Escape').click();
+    await button('Find Your Calm Zone').click();
     await button("I'm Ready →").click();
-    await button('Skip and Wander').click();
+    await completeQuiz(page);
     await page.locator('canvas').waitFor();
     await page.evaluate(() => {
       const parent = document.querySelector('canvas').parentElement;

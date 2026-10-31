@@ -5,13 +5,13 @@ export type Language = 'en' | 'zh';
 const en = {
   "INTRO_COPY": {
     "welcome": "Take a few minutes for yourself. Leave the noise outside for a little while.",
-    "startButton": "Begin Your Little Escape"
+    "startButton": "Find Your Calm Zone"
   },
   "interlude": {
     "title": "A Moment to Tune In",
     "firstLine": "Take a few minutes for yourself. Leave the noise outside for a little while.",
-    "secondLine": "🎧 Put on your headphones for a gentle audio journey",
-    "headphonesLabel": "Headphones with soft sound ripples",
+    "secondLine": "Put on your headphones for a gentle audio journey",
+    "headphonesLabel": "In-ear earbuds with soft sound ripples",
     "ready": "I'm Ready →",
     "tapToContinue": "You can also tap anywhere to continue."
   },
@@ -22,7 +22,7 @@ const en = {
       "options": [
         {
           "value": "A",
-          "label": "A fog of tiredness and heaviness",
+          "label": "A heavy haze of tiredness",
           "emoji": "🌫️"
         },
         {
@@ -32,14 +32,14 @@ const en = {
         },
         {
           "value": "C",
-          "label": "A quiet, empty daydream",
+          "label": "A quiet, faraway daydream",
           "emoji": "🫧"
         }
       ]
     },
     {
       "id": 2,
-      "question": "Where would you like to bring your attention right now?",
+      "question": "Where would you like to rest your attention?",
       "options": [
         {
           "value": "A",
@@ -48,7 +48,7 @@ const en = {
         },
         {
           "value": "B",
-          "label": "Your paused footsteps and the rhythm of your breathing",
+          "label": "Your feet on the ground and the rhythm of your breath",
           "emoji": "👣"
         },
         {
@@ -69,7 +69,7 @@ const en = {
         },
         {
           "value": "B",
-          "label": "A cool morning breeze passing through the leaves",
+          "label": "A leafy path in the cool morning breeze",
           "emoji": "🌿"
         },
         {
@@ -81,39 +81,39 @@ const en = {
     }
   ],
   "BUILTIN_STARDUST_QUOTES": [
-    "A long meeting is over. Hide here for three little minutes.",
-    "You worked hard today. Remember a warm drink later.",
-    "Take a breath. You may daydream for five minutes.",
+    "That was a long meeting. Take a few minutes just for you.",
+    "You've worked hard today. Take a moment for a warm drink.",
+    "Take a deep breath. It's okay to let your mind wander.",
     "With each note, the tangled thoughts slowly unwind.",
     "Leave your worries beyond gravity. This moment is yours."
   ],
   "ROAMING_COPY": {
-    "walkHint": "Follow the gentle light to the Listening Stone. Choose Sit & Listen when you are close.",
+    "walkHint": "Follow the light to the Listening Stone. Tap Sit & Listen when you get close.",
     "sitButton": "Sit & Listen",
     "standUpButton": "Stand Up",
     "portalButton": "Choose a Planet",
-    "portalPrompt": "Choose a Planet. Another little sky is waiting for you.",
+    "portalPrompt": "Choose a planet. There's somewhere new waiting for you.",
     "inputPlaceholder": "What would you like to say to yourself today?",
     "releaseButton": "Let It Float",
-    "emptyErrorBubble": "Your bubble is still empty. Add a few words before letting it float away~",
-    "leaveButton": "Leave for Now",
+    "emptyErrorBubble": "Your bubble is still empty. Add a few words, then let it float away.",
+    "leaveButton": "Leave",
     "farewellText": "Come back whenever you need a little space.",
-    "restartButton": "Take a Little Calm With You"
+    "restartButton": "Take This Calm With You"
   },
   "planets": {
     "OMEGA_01": {
       "name": "Amber Sun",
       "fullName": "Ω-01 · Amber Sun",
-      "subtitle": "Golden fields and a little sunlit warmth to unwind in.",
+      "subtitle": "Golden fields and warm sunlight. A place to unwind.",
       "noiseLabel": "Wheatfield breeze",
-      "biomeHint": "Wander among maple trees, golden wheat and warm berry bushes. Tiny leaves may follow your footsteps."
+      "biomeHint": "Wander among maple trees, golden wheat and orange berry bushes. A few tiny leaves might follow you."
     },
     "DELTA_02": {
       "name": "Mint Breeze",
       "fullName": "Δ-02 · Mint Breeze",
       "subtitle": "Cool morning mist and a breeze through the leaves.",
-      "noiseLabel": "Morning leaves",
-      "biomeHint": "Meet cloud trees, tender grasses and mint mushrooms. A few morning dewdrops are waiting to say hello."
+      "noiseLabel": "Leaves in the breeze",
+      "biomeHint": "Explore cloud-shaped trees, soft grass and mint-green mushrooms. Morning dewdrops are waiting to say hello."
     },
     "SIGMA_03": {
       "name": "Zero-Gravity Sky",
@@ -126,7 +126,7 @@ const en = {
       "name": "Quiet Starsea",
       "fullName": "Ψ-04 · Quiet Starsea",
       "subtitle": "Gentle stardust woven from twilight pink and dreamy blue.",
-      "noiseLabel": "Starsea tides",
+      "noiseLabel": "Starlit tides",
       "biomeHint": "Explore glowing jellyfish mushrooms, rounded crystals and moon reeds. They shine a little brighter as you pass."
     }
   },
@@ -135,9 +135,8 @@ const en = {
   "switchLanguage": "Switch language",
   "back": "Back",
   "continue": "Continue",
-  "skip": "Skip and Wander",
   "progress": "Question {n} of 3",
-  "quizHint": "Follow your intuition and choose an answer",
+  "quizHint": "Go with whatever feels right.",
   "gathering": "Gathering your scattered thoughts...",
   "tuning": "Tuning into your planet...",
   "soundOn": "Sound On",
@@ -154,36 +153,37 @@ const en = {
   "inputTitle": "Leave a Little Thought",
   "releaseSuccess": "Letting your words drift into the stars...",
   "audioError": "The sound isn't available right now, but you can still wander in silence.",
-  "farewellHeading": "Go on, then.",
+  "farewellHeading": "Take care out there.",
   "farewellMiddle": "You don’t have to figure everything out right now.",
   "farewellEnd": "Come back whenever you need a little space.",
-  "calm": "Take a Little Calm With You",
+  "calm": "Take This Calm With You",
   "another": "Visit Another Planet",
   "left": "Walk Left",
   "right": "Walk Right",
-  "portalNav": "Find Portal",
-  "rockNav": "Find Listening Stone",
+  "portalNav": "Find the Portal",
+  "rockNav": "Find the Listening Stone",
   "stoneLabel": "Listening Stone",
   "portalLabel": "Star Portal",
   "gardenHint": "Wander past the flowers and star trees. They may have a little surprise for you.",
-  "joystick": "Wandering Joystick",
-  "joystickHint": "Drag the joystick to walk, or use arrow keys / WASD",
-  "stageHint": "Use the joystick to approach the Listening Stone, then choose Sit & Listen above the joystick.",
-  "spiritHint": "Purr~ Use the joystick to take me for a stroll!",
+  "joystick": "Movement joystick",
+  "joystickHint": "Drag the joystick to move, or use WASD or the arrow keys.",
+  "stageHint": "Move close to the Listening Stone, then tap Sit & Listen above the joystick.",
+  "spiritHint": "Take me for a little stroll! Just move the joystick.",
   "tapSpirit": "Tap the little spirit",
+  "spiritPurr": "Purr~",
   "releaseBubble": "Release Your Bubble",
-  "restHint": "Stay here for a while. Choose Stand Up when you are ready to move.",
-  "stoneGuide": "Follow the gentle light to the Listening Stone. A Sit & Listen button will appear when you are close.",
-  "stoneArrived": "You are here. Choose Sit & Listen whenever you feel ready to rest.",
-  "portalGuide": "Ready for another little sky? Follow the gentle light to the portal.",
-  "portalArrived": "You found it. Choose Enter Portal above the joystick to discover your next sky.",
+  "restHint": "Stay as long as you like. Tap Stand Up when you're ready to explore.",
+  "stoneGuide": "Follow the light to the Listening Stone. Tap Sit & Listen when you get close.",
+  "stoneArrived": "You've found it. Tap Sit & Listen whenever you're ready to rest.",
+  "portalGuide": "Ready for somewhere new? Follow the light to the portal.",
+  "portalArrived": "You've found the portal. Tap Enter Portal above the joystick to see what's next.",
   "portalDiscovery": {
     "enter": "Enter Portal",
     "title": "Let the Stars Choose",
-    "intro": "There are {n} unvisited skies in this journey.",
-    "transmittingTitle": "Through a Little Starlight",
-    "transmitting": "The portal is opening. Your next sky is waiting...",
-    "lastPlanet": "Just one sky left. The portal will take you straight there...",
+    "intro": "{n} more to explore.",
+    "transmittingTitle": "A Moment Between Worlds",
+    "transmitting": "The portal is opening. Somewhere new is waiting...",
+    "lastPlanet": "One planet left to explore. Let's take you there...",
     "destinations": "Unvisited planets",
     "readyHint": "The planets drift clockwise. Let the stars choose your next stop.",
     "spin": "Find My Next Planet",
@@ -191,14 +191,14 @@ const en = {
     "spinning": "A little spin, a little surprise...",
     "arriving": "Next stop: {planet}. Drifting there now...",
     "departing": "On Our Way...",
-    "completeTitle": "You Have Wandered Every Sky",
-    "completeBody": "All four planets have been part of your journey. Linger here, or begin a new little orbit.",
-    "completeHint": "A new journey opens the other three skies again.",
-    "resetRoute": "Begin Another Journey"
+    "completeTitle": "A Little Journey, Complete",
+    "completeBody": "You've visited all four planets. Stay a while, or set off on a new journey.",
+    "completeHint": "Start again to explore the other three planets.",
+    "resetRoute": "Start a New Journey"
   },
   "exitGuide": {
-    "title": "Leave Whenever You Like",
-    "body": "Your little escape can end whenever you need. Tap Leave for Now in the top-left corner to say goodbye.",
+    "title": "Leave Anytime",
+    "body": "Tap 'Leave' in the top-left corner whenever you're ready.",
     "confirm": "Got It"
   },
   "planetGuide": {
@@ -207,33 +207,33 @@ const en = {
     "steps": [
       {
         "title": "Move around",
-        "body": "Drag the joystick below. WASD and arrow keys work too."
+        "body": "Drag the joystick below to move, or use WASD or the arrow keys."
       },
       {
         "title": "Listening Stone",
-        "body": "Walk close, then tap Sit & Listen above the joystick for music and a closer view. Tap Stand Up to continue."
+        "body": "Move close and tap Sit & Listen above the joystick. Music fades in and the view moves closer. Tap Stand Up to explore."
       },
       {
         "title": "Star Portal",
-        "body": "After resting, follow the light here. Walk close and tap Enter Portal above the joystick to visit another planet."
+        "body": "After resting, follow the light to the portal. Move close and tap Enter Portal above the joystick to visit another planet."
       }
     ],
     "confirm": "Got It, Let’s Wander"
   }
 };
 
-type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQuestion[] };
+export type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQuestion[] };
 
 const zh: Copy = {
   "INTRO_COPY": {
     "welcome": "给自己几分钟，把外面的喧闹暂时留在门外。",
-    "startButton": "开启短暂漫游"
+    "startButton": "找到属于你的宁静空间"
   },
   "interlude": {
     "title": "先让声音轻轻靠近",
     "firstLine": "给自己留几分钟吧，把外面的喧嚣暂时留在门外。",
-    "secondLine": "🎧 建议戴上耳机，开启这段温柔的声音漫游",
-    "headphonesLabel": "耳机与轻柔扩散的声波",
+    "secondLine": "建议戴上耳机，开启这段温柔的声音漫游",
+    "headphonesLabel": "入耳式耳机与轻柔扩散的声波",
     "ready": "准备好了 →",
     "tapToContinue": "也可以轻点空白处继续。"
   },
@@ -318,7 +318,7 @@ const zh: Copy = {
     "inputPlaceholder": "写下一句现在的心情，让它化作星尘留在这里...",
     "releaseButton": "放飞",
     "emptyErrorBubble": "气泡还是轻飘飘的呢，写两个字再放飞吧~",
-    "leaveButton": "先去忙啦",
+    "leaveButton": "离开",
     "farewellText": "去忙吧，累了随时来找我，我会一直在这里等你。",
     "restartButton": "重新开启漫游"
   },
@@ -352,12 +352,11 @@ const zh: Copy = {
       "biomeHint": "找找水母小蘑菇、星光水晶和弯月芦苇，你经过时，它们会悄悄亮起来。"
     }
   },
-  "title": "一息之外",
+  "title": "A Breath Away",
   "support": "推荐戴上耳机，也可以安静地享受这段漫游。",
   "switchLanguage": "切换语言",
   "back": "返回",
   "continue": "继续",
-  "skip": "跳过，直接漫游",
   "progress": "第 {n} 题，共 3 题",
   "quizHint": "跟着直觉，选一个就好",
   "gathering": "正在收集你散落的思绪……",
@@ -393,6 +392,7 @@ const zh: Copy = {
   "stageHint": "用摇杆走近聆听石，再点摇杆上方的「坐下听歌」。",
   "spiritHint": "呼噜呼噜～用摇杆带我走走吧！",
   "tapSpirit": "轻点小精灵",
+  "spiritPurr": "呼噜呼噜～",
   "releaseBubble": "放飞你的气泡",
   "restHint": "就在这里歇一会儿吧。想走走时，点「起身」。",
   "stoneGuide": "跟着柔光去找聆听石吧，走近后会出现「坐下听歌」。",
@@ -419,9 +419,9 @@ const zh: Copy = {
     "resetRoute": "再漫游一圈"
   },
   "exitGuide": {
-    "title": "想走的时候，随时出发",
-    "body": "之后你随时都可以离开。点左上角的「先去忙啦」，就能告别这颗星球。",
-    "confirm": "知道啦"
+    "title": "随时可以离开",
+    "body": "准备好离开时，点击左上角的「离开」即可。",
+    "confirm": "知道了"
   },
   "planetGuide": {
     "title": "漫游前，先看一眼",

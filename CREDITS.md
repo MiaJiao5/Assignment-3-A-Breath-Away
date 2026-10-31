@@ -17,9 +17,9 @@ See package.json and bun.lock for the project's complete dependency inventory. D
 
 ## Fonts and visuals
 
-The landing title uses Ballet by Omnibus-Type / Maximiliano Sproviero, distributed from the Google Fonts repository under the SIL Open Font License. The original font and its license are bundled in `public/fonts/` so the title does not rely on a remote font request.
+The landing title uses Pinyon Script by Nicole Fally / the PinyonScript Project Authors, distributed from the [Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/pinyonscript) under the SIL Open Font License. The original font and its license are bundled in `public/fonts/` so the title does not rely on a remote font request. The previously used Ballet font by Omnibus-Type / Maximiliano Sproviero and its license remain in that directory.
 
-Noto Sans SC, Noto Serif SC, and Plus Jakarta Sans are requested through Google Fonts, with local system-font fallbacks. The planet textures, background gradients, aura orb, headphone SVG, particles, and spirit visuals are produced by application code. No stock photography or third-party image asset is required.
+Section and popup headings use [Cormorant Garamond](https://github.com/google/fonts/tree/main/ofl/cormorantgaramond) by Christian Thalmann / the Cormorant Project Authors at Medium weight. Body text and controls use [Nunito Sans](https://github.com/google/fonts/tree/main/ofl/nunitosans) by the Nunito Sans Project Authors at Regular and Medium/SemiBold weights. Both original variable fonts and their SIL Open Font Licenses are bundled in `public/fonts/`. Noto Sans SC and Noto Serif SC are requested through Google Fonts as Chinese fallbacks, followed by local system fonts. The planet textures, background gradients, aura orb, headphone SVG, particles, and spirit visuals are produced by application code. No stock photography or third-party image asset is required.
 
 ## Supplied music
 

@@ -1,5 +1,6 @@
 import { useLanguage } from '../i18n/LanguageContext';
 import React, { useEffect, useState } from 'react';
+import { BilingualText } from '../i18n/BilingualText';
 
 export type SpiritPose = 'idle' | 'walking' | 'sitting' | 'waving';
 
@@ -367,7 +368,7 @@ export const FluffySpirit: React.FC<FluffySpiritProps> = ({
       {/* 点击互动时的温柔小星芒/音符浮现 */}
       {isHopping && (
         <div className="absolute -top-7 left-1/2 -translate-x-1/2 pointer-events-none text-xs font-medium text-amber-200/95 drop-shadow-[0_0_8px_rgba(255,255,255,0.9)] animate-bounce">
-          ✦ 呼噜呼噜~ ✦
+          ✦ <BilingualText select={c => c.spiritPurr} /> ✦
         </div>
       )}
 

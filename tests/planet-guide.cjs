@@ -1,5 +1,6 @@
 const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const { completeQuiz } = require('./navigation.cjs');
 
 (async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true, args: ['--enable-unsafe-swiftshader'] });
@@ -8,7 +9,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const b = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://127.0.0.1:3001');
-    await b('Begin Your Little Escape').click(); await b("I'm Ready →").click(); await b('Skip and Wander').click();
+    await b('Find Your Calm Zone').click(); await b("I'm Ready →").click(); await completeQuiz(page);
     const guide = page.getByRole('dialog', { name: 'A Little Guide to Your Planet' });
     await guide.waitFor();
     for (const language of ['EN', '中文']) {

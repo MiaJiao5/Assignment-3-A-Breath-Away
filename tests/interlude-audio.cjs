@@ -46,12 +46,13 @@ const { approach } = require('./navigation.cjs');
     assert.equal(first.lang, 'en-US', 'English default even with Chinese browser locale');
     assert.ok(first.at - began >= 450, 'Narration waits for entry');
     const subtitle = page.locator('.interlude-first');
-    const animationTime = await subtitle.evaluate(el => el.getAnimations()[0].currentTime);
+    const reveal = page.locator('.interlude-welcome-reveal');
+    const animationTime = await reveal.evaluate(el => el.getAnimations()[0].currentTime);
     await button('中文').click();
     await page.waitForFunction(() => window.__speechLog.filter(e => e.type === 'speak').length === 2);
     const spoken = await page.evaluate(() => window.__speechLog.filter(e => e.type === 'speak').map(e => e.lang));
     assert.deepEqual(spoken, ['en-US', 'zh-CN'], 'Only selected-language speech plays');
-    assert.ok(await subtitle.evaluate(el => el.getAnimations()[0].currentTime) >= animationTime, 'Subtitle animation does not restart on language change');
+    assert.ok(await reveal.evaluate(el => el.getAnimations()[0].currentTime) >= animationTime, 'Subtitle animation does not restart on language change');
     assert.equal(await subtitle.innerText(), zh.interlude.firstLine);
     await page.waitForTimeout(4300);
     await page.screenshot({ path: 'tests/headphone-interlude-zh.png' });
@@ -59,9 +60,10 @@ const { approach } = require('./navigation.cjs');
     await page.locator('.interlude-scene').click({ position: { x: 12, y: 12 } });
     await page.locator('.quiz-scene').waitFor();
     await button(zh.back).click();
+    assert.equal(await button(zh.interlude.ready).count(),0,'Reopened interlude hides Ready during its first stage');
     await button(zh.interlude.ready).click();
     await page.waitForTimeout(700);
-    assert.equal(await page.evaluate(() => window.__speechLog.filter(e => e.type === 'speak').length), 2, 'Quick continue cancels pending narration');
+    assert.equal(await page.evaluate(() => window.__speechLog.filter(e => e.type === 'speak').length), 3, 'Returning to the interlude completes a new narration before continuing');
     assert.deepEqual(requests, [], 'Unset voice recordings create no 404 requests');
     await page.close();
 
@@ -76,7 +78,9 @@ const { approach } = require('./navigation.cjs');
     await silent.getByRole('button', { name: en.interlude.ready, exact: true }).click();
     await silent.locator('.quiz-scene').waitFor();
     await silent.close();
-    console.log('PASS: minimal cover, delayed and selected-language narration, staggered subtitles, language continuity, blank-tap continue, quick skip, missing recordings and reduced motion.');
+    console.log('PASS: minimal cover, selected-language narration, sequential text, end-gated Ready, language continuity, blank-tap continue, missing recordings and reduced motion.');
+
+    if (process.env.INTERLUDE_ONLY === '1') return;
 
     const tracks = [
       ['OMEGA_01', [0,0,0], 'omega-01-copper-afternoon.mp3'],

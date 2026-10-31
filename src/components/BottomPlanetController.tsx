@@ -19,7 +19,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const heldKeysRef = useRef<Set<string>>(new Set());
 
-  const MAX_RADIUS = 23;
+  const MAX_RADIUS = 32.4;
 
   // 键盘 WASD / 方向键支持（并在窗口失焦时自动清空按键）
   useEffect(() => {
@@ -163,10 +163,10 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
         onPointerCancel={handlePointerUp}
         className="wandering-joystick"
       >
-        <span className="absolute top-2 text-[9px] opacity-45" aria-hidden="true">▲</span>
-        <span className="absolute bottom-2 text-[9px] opacity-45" aria-hidden="true">▼</span>
-        <span className="absolute left-2 text-[9px] opacity-45" aria-hidden="true">◀</span>
-        <span className="absolute right-2 text-[9px] opacity-45" aria-hidden="true">▶</span>
+        <span className="absolute top-2.5 text-[11px] opacity-45" aria-hidden="true">▲</span>
+        <span className="absolute bottom-2.5 text-[11px] opacity-45" aria-hidden="true">▼</span>
+        <span className="absolute left-2.5 text-[11px] opacity-45" aria-hidden="true">◀</span>
+        <span className="absolute right-2.5 text-[11px] opacity-45" aria-hidden="true">▶</span>
         <div className="joystick-knob" style={{ transform: `translate3d(${knobOffset.x}px, ${knobOffset.y}px, 0)` }} aria-hidden="true">🐾</div>
       </div>
     </div>

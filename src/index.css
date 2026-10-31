@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/CormorantGaramond-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Nunito Sans';
+  src: url('/fonts/NunitoSans-Regular.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 400 600;
+  font-display: swap;
+}
+:root {
+  --font-body: 'Nunito Sans', 'Noto Sans SC', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Cormorant Garamond', 'Noto Serif SC', Georgia, serif;
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -13,15 +32,37 @@
     width: 100%;
     height: 100%;
     overflow: hidden;
-    font-family: 'Noto Sans SC', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: var(--font-body);
+    font-weight: 400;
     user-select: none;
     -webkit-font-smoothing: antialiased;
   }
 }
 
-.font-serif-soft {
-  font-family: 'Noto Serif SC', Georgia, serif;
+.font-serif-soft, h1:not(.intro-title), h2, h3 {
+  font-family: var(--font-heading);
+  font-weight: 500;
 }
+.roaming-mobile-frame p, .roaming-mobile-frame input { font-family: var(--font-body); font-weight: 400; }
+.roaming-mobile-frame button { font-family: var(--font-body); font-weight: 500; }
+
+/* A shared bilingual footprint: typography and geometry never depend on the
+   selected language. Hidden copies reserve the larger natural line count. */
+.bilingual-text { display: inline-grid; min-width: 0; max-width: 100%; vertical-align: middle; }
+.bilingual-text > span { grid-area: 1 / 1; min-width: 0; align-self: center; }
+.bilingual-reserve { visibility: hidden; pointer-events: none; user-select: none; }
+.bilingual-current { overflow-wrap: break-word; }
+.bilingual-block { display: grid; width: 100%; }
+.bilingual-block > span { align-self: start; }
+.quiz-options { display: grid; grid-auto-rows: 1fr; }
+.quiz-options .bilingual-text { flex: 1; }
+.message-panel form > button { width: 118px; min-height: 34px; padding-inline: 10px; }
+.rest-action { min-width: 180px; justify-content: center; }
+.leave-control { width: 118px; }
+.orbit-planet-name { min-height: 43.5px; }
+.escape-cloud-button { display: grid; place-items: center; }
+.farewell-scene > .my-auto { width: 100%; min-width: 0; }
+.farewell-scene .airbrush-soft-card { width: 100%; }
 
 /* Mobile-View H5 Container with strict specifications */
 .roaming-mobile-frame {
@@ -271,10 +312,24 @@
 .stardust-layer {
   position: absolute;
   inset: 0 0 auto;
-  height: clamp(120px, 24%, 144px);
+  /* A stable sky reserve also prevents the seated camera from reframing
+     whenever a thought is added, wraps, or finishes its animation. */
+  height: 178px;
   z-index: 25;
-  overflow: hidden;
-  mask-image: linear-gradient(transparent, #000 8px, #000 calc(100% - 8px), transparent);
+  overflow: visible;
+  /* Clip horizontal drift only; long thoughts keep their complete height. */
+  clip-path: inset(-24px 0 -24px 0);
+}
+.stardust-thought {
+  position: absolute;
+  top: calc(10px + var(--stardust-lane) * 86px);
+  left: 0;
+  width: max-content;
+  max-width: min(320px, calc(100% - 24px));
+}
+@media (max-height: 740px) {
+  .stardust-layer { height: 92px; }
+  .stardust-thought[data-lane="1"] { display: none; }
 }
 @keyframes stardustDriftAcross {
   0% { opacity: 0; transform: translate3d(-40%, 0, 0); filter: blur(4px); }
@@ -417,7 +472,7 @@
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 12px;
-  font-weight: 400;
+  font-weight: 500;
   opacity: .5;
   cursor: pointer;
 }
@@ -425,7 +480,7 @@
   background: transparent;
   color: inherit;
   opacity: .9;
-  font-weight: 650;
+  font-weight: 600;
 }
 button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   outline: 2px solid #78649b;
@@ -474,13 +529,14 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   padding: 6px 0 4px;
 }
 .joystick-panel[hidden] { display: none; }
+.planet-control-dock.is-wandering { margin-top: -10px; padding-bottom: 26px; }
 .wandering-joystick {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 88px;
-  height: 88px;
+  width: 124px;
+  height: 124px;
   border-radius: 50%;
   color: inherit;
   cursor: grab;
@@ -494,13 +550,17 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .joystick-knob {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 50px;
+  height: 50px;
+  font-size: 20px;
   border-radius: 50%;
   background: rgba(255,255,255,.36);
   box-shadow: 0 4px 14px #18203820, inset 0 0 8px #ffffff33;
   pointer-events: none;
   transition: transform 75ms;
+}
+@media (max-height: 620px) {
+  .planet-control-dock.is-wandering { padding-bottom: 18px; }
 }
 
 .planet-guide-overlay {
@@ -532,6 +592,11 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .planet-guide-scroll { scrollbar-width: none; -ms-overflow-style: none; }
 .planet-guide-scroll::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .planet-instructions { padding: 22px; }
+.exit-guide-card { padding: 26px 24px; }
+.exit-guide-arrow { display: flex; align-items: center; justify-content: center; height: 36px; margin-bottom: 12px; }
+#exit-guide-title { font-size: 28px; line-height: 1.15; }
+#exit-guide-body { max-width: 260px; margin: 10px auto 0; line-height: 1.6; text-wrap: balance; }
+.exit-guide-confirm { margin-top: 20px; }
 .guide-step-number {
   display: grid;
   place-items: center;
@@ -570,6 +635,11 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   to { opacity: 1; transform: translateY(0); }
 }
 .message-panel { animation: messageReveal 1.2s ease-out both; }
+.spirit-overhead-bubble {
+  width: min(275px, calc(100% - 24px));
+  background: rgba(255, 255, 255, .58);
+  box-shadow: 0 8px 24px #33244b18, 0 0 18px #ffffff30;
+}
 
 /* A single veil covers the complete app, including its header. */
 .portal-discovery-overlay {
@@ -649,7 +719,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 }
 .orbit-planet-name { font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
 .planet-orbit-slot[data-selected="true"] .orbit-planet { outline: 3px solid #c2a568; outline-offset: 5px; filter: brightness(1.08); }
-.planet-orbit-slot[data-selected="true"] .orbit-planet-name { font-weight: 700; color: #765327; }
+.planet-orbit-slot[data-selected="true"] .orbit-planet-name { font-weight: 600; color: #765327; }
 .orbit-pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: #9a754c; font-size: 24px; }
 .orbit-center { position: absolute; inset: 0; display: grid; place-items: center; color: #b59bce; font-size: 34px; text-shadow: 0 0 18px #dac8ef; }
 .portal-flight { position: relative; height: 220px; display: grid; place-items: center; overflow: hidden; }
@@ -686,8 +756,8 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   padding: 0;
 }
 @font-face {
-  font-family: 'Ballet';
-  src: url('/fonts/Ballet-Regular.ttf') format('truetype');
+  font-family: 'Pinyon Script';
+  src: url('/fonts/PinyonScript-Regular.ttf') format('truetype');
   font-style: normal;
   font-weight: 400;
   font-display: swap;
@@ -711,11 +781,11 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   pointer-events: none;
 }
 .intro-title[data-script="true"] {
-  --script-unit: min(118px, calc((100vw - 56px) / 3), calc((min(100dvh, 860px) - 170px) / 4.5));
+  --script-unit: min(110px, calc((min(100vw, 414px) - 64px) / 3.1), calc((min(100dvh, 860px) - 210px) / 4.25));
   top: clamp(8px, 2vh, 20px);
   height: calc(var(--script-unit) * 4.5);
-  font-family: 'Ballet', 'Snell Roundhand', 'Segoe Script', cursive;
-  font-variation-settings: 'opsz' 72;
+  font-family: 'Pinyon Script', 'Snell Roundhand', 'Segoe Script', cursive;
+  font-kerning: normal;
   font-synthesis: none;
   letter-spacing: 0;
   text-align: left;
@@ -724,7 +794,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   position: absolute;
   display: block;
   width: max-content;
-  padding: .35em .6em .55em .12em;
+  padding: .15em .2em .45em .12em;
   line-height: .9;
   white-space: nowrap;
   background-clip: text;
@@ -734,30 +804,25 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 }
 .intro-title-line-1 {
   top: 0;
-  left: calc(var(--script-unit) * .05);
-  font-size: calc(var(--script-unit) * .96);
+  left: calc(var(--script-unit) * .1);
+  font-size: calc(var(--script-unit) * 1.6);
   background-image: linear-gradient(115deg, #B69AE8 12%, #E9A6D1 90%);
 }
 .intro-title-line-2 {
-  top: calc(var(--script-unit) * 1.22);
-  left: calc(var(--script-unit) * .14);
+  top: calc(var(--script-unit) * 1.3);
+  left: calc(var(--script-unit) * .08);
   font-size: var(--script-unit);
   background-image: linear-gradient(110deg, #E9A6D1 8%, #F5B8A5 48%, #F6D98A 90%);
 }
 .intro-title-line-3 {
-  top: calc(var(--script-unit) * 2.62);
+  top: calc(var(--script-unit) * 2.8);
   left: calc(var(--script-unit) * -.02);
   padding-right: .12em;
-  font-size: calc(var(--script-unit) * 1.055);
+  font-size: calc(var(--script-unit) * 1.06);
   background-image: linear-gradient(110deg, #B69AE8 10%, #8FC5F5 55%, #91D9C1 92%);
 }
-.intro-title-localized {
-  font-family: 'Noto Serif SC', Georgia, serif;
-  background: linear-gradient(110deg, #B69AE8, #E9A6D1, #8FC5F5);
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
+.intro-title-line-2 .intro-title-capital { font-size: 1.42em; }
+.intro-title-line-3 .intro-title-capital { font-size: 1.35em; }
 .intro-copy { position: relative; isolation: isolate; }
 .intro-copy::before {
   content: ''; position: absolute; inset: -18px; z-index: -1;
@@ -857,34 +922,42 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 @keyframes auraDeparture { 0% { transform: scale(.8); opacity: .65; } 65% { transform: scale(1.3, .9); opacity: 1; } 100% { transform: scale(1.5); opacity: .1; } }
 .interlude-scene { display: flex; flex-direction: column; align-items: center; padding: 12px 28px 44px; animation: interludeEnter .5s ease-out both; }
 .quiz-scene { animation: interludeEnter .5s ease-out both; }
-.interlude-center { margin-block: auto; display: flex; flex-direction: column; align-items: center; width: 100%; padding-block: 24px; }
-.headphone-aura { position: relative; display: grid; place-items: center; width: 190px; height: 190px; margin-bottom: 32px; }
+.interlude-center { position: relative; margin-block: auto; display: flex; flex-direction: column; align-items: center; width: 100%; padding-block: 24px; }
+.headphone-aura { position: absolute; bottom: calc(100% + 8px); display: grid; place-items: center; width: 190px; height: 190px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .9s ease .35s, visibility 0s linear .35s; }
 .headphone-aura::before { content: ''; position: absolute; inset: -15px; border-radius: 50%; background: radial-gradient(circle, #f3cbd64d, #c5d8e52b 45%, transparent 72%); filter: blur(18px); }
-.headphone-icon { width: 120px; height: 120px; filter: drop-shadow(0 0 14px #fff8); animation: headphoneFloat 5s ease-in-out infinite; }
-.headphone-ripple { position: absolute; inset: 20px; border: 1px solid #ab99b93d; border-radius: 50%; opacity: 0; animation: headphoneRipple 6s ease-out infinite; }
+.headphone-icon { width: 120px; height: 120px; filter: drop-shadow(0 0 14px #fff8); animation: headphoneFloat 5s ease-in-out infinite paused; }
+.headphone-ripple { position: absolute; inset: 20px; border: 1px solid #ab99b93d; border-radius: 50%; opacity: 0; animation: headphoneRipple 6s ease-out infinite paused; }
 .headphone-ripple:nth-child(2) { animation-delay: 2s; }
 .headphone-ripple:nth-child(3) { animation-delay: 4s; }
-.interlude-subtitles { width: 100%; max-width: 330px; text-align: center; }
-.interlude-first { font-size: clamp(19px, 5.5vw, 23px); line-height: 1.65; text-wrap: balance; opacity: 0; animation: subtitleReveal 3s .5s ease-out forwards; }
-.interlude-second { margin-top: 24px; font-size: 12px; line-height: 1.8; opacity: 0; animation: subtitleRevealSecondary 3s 1.7s ease-out forwards; }
-.interlude-ready { flex-shrink: 0; min-height: 48px; min-width: 164px; padding: 12px 25px; font-size: 14px; }
+.interlude-subtitles { display: grid; width: 100%; max-width: 330px; text-align: center; }
+.interlude-panel { grid-area: 1 / 1; margin: 0; font-size: clamp(19px, 5.5vw, 23px); line-height: 1.65; text-wrap: balance; opacity: 0; visibility: hidden; transition: opacity .7s ease; }
+.interlude-scene:is([data-phase="welcome"], [data-phase="fading"]) .interlude-first { visibility: visible; }
+.interlude-scene[data-phase="welcome"] .interlude-first { opacity: 1; }
+.interlude-welcome-reveal { animation: subtitleReveal 1.4s .1s ease-out both; }
+.interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) .interlude-second { opacity: 1; visibility: visible; transition-duration: .9s; }
+.interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) .headphone-aura { opacity: 1; visibility: visible; }
+.interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) :is(.headphone-icon, .headphone-ripple) { animation-play-state: running; }
+.interlude-scene .interlude-ready { flex-shrink: 0; min-height: 48px; min-width: 164px; padding: 12px 25px; font-size: 14px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .9s ease; }
+.interlude-scene[data-phase="ready"] .interlude-ready { opacity: 1; visibility: visible; pointer-events: auto; }
 @keyframes interludeEnter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes headphoneFloat { 0%,100% { transform: translateY(3px); } 50% { transform: translateY(-4px); } }
 @keyframes headphoneRipple { 0% { transform: scale(.6); opacity: .5; } 100% { transform: scale(1.55); opacity: 0; } }
 @keyframes subtitleReveal { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes subtitleRevealSecondary { from { opacity: 0; transform: translateY(8px); } to { opacity: .62; transform: translateY(0); } }
 @media (max-height: 740px) {
   .interlude-scene { padding-bottom: 28px; }
-  .headphone-aura { width: 150px; height: 150px; margin-bottom: 18px; }
+  .headphone-aura { width: 150px; height: 150px; }
   .headphone-icon { width: 100px; height: 100px; }
-  .interlude-first { font-size: 19px; }
-  .interlude-second { margin-top: 18px; }
+  .interlude-panel { font-size: 19px; }
+}
+@media (max-height: 620px) {
+  .headphone-aura { width: 120px; height: 120px; }
+  .headphone-icon { width: 84px; height: 84px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .breathing-aura, .aura-fluid, .headphone-icon, .headphone-ripple, .interlude-scene, .quiz-scene { animation: none; }
   .headphone-ripple { opacity: .18; transform: scale(.8); }
   .headphone-ripple:nth-child(2) { transform: scale(1.1); }
   .headphone-ripple:nth-child(3) { transform: scale(1.4); }
-  .interlude-first, .interlude-second { animation: none; opacity: 1; }
-  .interlude-second { opacity: .62; }
+  .interlude-welcome-reveal { animation: none; }
+  .interlude-panel, .headphone-aura, .interlude-scene .interlude-ready { transition: none; }
 }

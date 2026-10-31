@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { PLANETS, PLANET_LIST, type PlanetId } from '../data/roamingData';
 import { useLanguage } from '../i18n/LanguageContext';
 import { soundEngine } from '../audio/soundEngine';
+import { BilingualText } from '../i18n/BilingualText';
+import type { Copy } from '../i18n/translations';
 
 type DiscoveryPhase = 'entering' | 'ready' | 'spinning' | 'arriving' | 'complete';
 
@@ -121,10 +123,10 @@ export function PlanetDiscovery({ currentPlanetId, visitedPlanetIds, onClose, on
   const entering = phase === 'entering';
   const complete = phase === 'complete';
   const arriving = phase === 'arriving';
-  const status = entering
-    ? (destinations.length === 1 ? text.lastPlanet : text.transmitting)
-    : arriving && selectedId ? text.arriving.replace('{planet}', copy.planets[selectedId].fullName)
-    : phase === 'spinning' ? text.spinning : text.readyHint;
+  const status = (c: Copy) => entering
+    ? (destinations.length === 1 ? c.portalDiscovery.lastPlanet : c.portalDiscovery.transmitting)
+    : arriving && selectedId ? c.portalDiscovery.arriving.replace('{planet}', c.planets[selectedId].fullName)
+    : phase === 'spinning' ? c.portalDiscovery.spinning : c.portalDiscovery.readyHint;
 
   return (
     <div className="portal-discovery-overlay" onClick={close} data-phase={phase}>
@@ -133,10 +135,10 @@ export function PlanetDiscovery({ currentPlanetId, visitedPlanetIds, onClose, on
         onClick={event => event.stopPropagation()}>
         <div className="discovery-content">
           <h2 id="planet-discovery-title" className="font-serif-soft text-xl font-semibold">
-            {complete ? text.completeTitle : entering ? text.transmittingTitle : text.title}
+            <BilingualText className="bilingual-block" select={c => complete ? c.portalDiscovery.completeTitle : entering ? c.portalDiscovery.transmittingTitle : c.portalDiscovery.title} />
           </h2>
           {!entering && <p className="mt-3 text-xs leading-relaxed text-slate-600">
-            {complete ? text.completeBody : text.intro.replace('{n}', String(destinations.length))}
+            <BilingualText className="bilingual-block" select={c => complete ? c.portalDiscovery.completeBody : c.portalDiscovery.intro.replace('{n}', String(destinations.length))} />
           </p>}
           {entering ? (
             <div className="portal-flight" aria-hidden="true">
@@ -160,7 +162,7 @@ export function PlanetDiscovery({ currentPlanetId, visitedPlanetIds, onClose, on
                           background: `radial-gradient(circle at 34% 28%, ${colors.planetCore}, ${colors.planetMid} 55%, ${colors.planetEdge})`,
                           boxShadow: `0 0 22px ${colors.planetGlow}`,
                         }} />
-                        <span className="orbit-planet-name">{copy.planets[id].fullName}</span>
+                        <span className="orbit-planet-name"><BilingualText className="bilingual-block" select={c => c.planets[id].fullName} /></span>
                       </div>
                     </li>
                   );
@@ -171,16 +173,16 @@ export function PlanetDiscovery({ currentPlanetId, visitedPlanetIds, onClose, on
         </div>
         <div className="discovery-footer">
           <p id="planet-discovery-status" className="discovery-status" role="status" aria-live="polite" aria-atomic="true">
-            {complete ? text.completeHint : status}
+            <BilingualText className="bilingual-block" select={c => complete ? c.portalDiscovery.completeHint : status(c)} />
           </p>
           {!entering && !complete && <button ref={spinButtonRef} type="button" onClick={spin}
             disabled={phase !== 'ready'}
             className="discovery-spin airbrush-pill-btn w-full rounded-full py-3 px-4 text-sm font-semibold cursor-pointer">
-            {phase === 'ready' ? text.spin : arriving ? text.departing : text.spinningButton}
+            <BilingualText select={c => phase === 'ready' ? c.portalDiscovery.spin : arriving ? c.portalDiscovery.departing : c.portalDiscovery.spinningButton} />
           </button>}
           {complete && <button type="button" onClick={onResetRoute}
-            className="airbrush-pill-btn w-full rounded-full py-3 px-4 text-sm font-semibold cursor-pointer">{text.resetRoute}</button>}
-          <button type="button" onClick={close} className="discovery-cancel px-4 py-2 text-xs text-slate-600 cursor-pointer">{copy.stay}</button>
+            className="airbrush-pill-btn w-full rounded-full py-3 px-4 text-sm font-semibold cursor-pointer"><BilingualText select={c => c.portalDiscovery.resetRoute} /></button>}
+          <button type="button" onClick={close} className="discovery-cancel px-4 py-2 text-xs text-slate-600 cursor-pointer"><BilingualText select={c => c.stay} /></button>
         </div>
       </div>
     </div>

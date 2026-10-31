@@ -2,10 +2,11 @@ const assert = require('node:assert/strict');
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
-const { approach, installNavigation } = require('./navigation.cjs');
+const { approach, installNavigation, completeQuiz } = require('./navigation.cjs');
 
 (async () => {
   const { PLANETS } = await import(pathToFileURL(path.resolve('src/data/roamingData.ts')));
+  const { translations: {en,zh} } = await import(pathToFileURL(path.resolve('src/i18n/translations.ts')));
   const expected = {
     OMEGA_01: { angles: [25,80,145,210,275,330], stone: 55, portal: 180 },
     DELTA_02: { angles: [15,65,125,190,245,305], stone: 95, portal: 220 },
@@ -18,8 +19,18 @@ const { approach, installNavigation } = require('./navigation.cjs');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const b = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://127.0.0.1:3001');
-    await b('Begin Your Little Escape').click(); await b("I'm Ready →").click();
-    await b('Skip and Wander').click(); await b(/^Got It,/).click();
+    await page.evaluate(()=>{
+      window.__helpOpenCounts={planet:0,exit:0};let planet=false,exit=false;
+      new MutationObserver(()=>{
+        const nextPlanet=!!document.querySelector('.planet-instructions');
+        const nextExit=!!document.querySelector('.exit-guide-card');
+        if(nextPlanet&&!planet)window.__helpOpenCounts.planet++;
+        if(nextExit&&!exit)window.__helpOpenCounts.exit++;
+        planet=nextPlanet;exit=nextExit;
+      }).observe(document.body,{childList:true,subtree:true});
+    });
+    await b('Find Your Calm Zone').click(); await b("I'm Ready →").click();
+    await completeQuiz(page); await b(/^Got It,/).click();
     await installNavigation(page);
     const seen = [], types = new Set();
     for (let visit = 0; visit < 4; visit++) {
@@ -47,8 +58,20 @@ const { approach, installNavigation } = require('./navigation.cjs');
       assert.equal(await page.evaluate(() => window.__gardenBeforeLanguage === window.__navScene.getObjectByName('interactive-garden')), true, 'Language switching preserves the biome and interaction state');
       await page.screenshot({ path: `tests/biome-${snapshot.id}.png` });
       await approach(page, 'listening-stone', '[ Sit & Listen ]');
-      await b('[ Sit & Listen ]').click(); await b('[ Stand Up ]').click();
-      if (await b('Got It').count()) await b('Got It').click();
+      await b('[ Sit & Listen ]').click();
+      assert.equal(await b(en.ROAMING_COPY.leaveButton).count(),visit===0?0:1,'Leave stays unlocked on later planets, including while seated');
+      await b('[ Stand Up ]').click();
+      if(visit===0){
+        await page.getByRole('dialog',{name:en.exitGuide.title}).waitFor();
+        await b('中文').click();await b(zh.ROAMING_COPY.leaveButton).waitFor();
+        await page.getByRole('dialog',{name:zh.exitGuide.title}).waitFor();
+        await b('EN').click();await b(en.exitGuide.confirm).click();
+        // A second rest on the same planet must not open another exit guide.
+        await b('[ Sit & Listen ]').click();await b(en.ROAMING_COPY.leaveButton).waitFor();
+        await b('[ Stand Up ]').click();
+      }
+      assert.equal(await page.locator('.exit-guide-card').count(),0,'Exit guidance appears only after the first Stand Up of the journey');
+      await b(en.ROAMING_COPY.leaveButton).waitFor();
       const controls = await page.evaluate(() => {
         const leave = getComputedStyle(document.querySelector('.leave-control'));
         const language = getComputedStyle(document.querySelector('.language-toggle'));
@@ -66,17 +89,29 @@ const { approach, installNavigation } = require('./navigation.cjs');
         window.__oldGarden.traverse(o => { if (o.material?.map) o.material.map.addEventListener('dispose', () => window.__disposedArt++); });
       });
       await b('[ Enter Portal ]').click();
+      await b(en.ROAMING_COPY.leaveButton).waitFor();
       const spin = b('Find My Next Planet');
       // The last remaining planet skips the lottery.
       if (visit < 2) { await spin.waitFor(); await spin.click(); }
-      await b(/^Got It,/).waitFor(); await b(/^Got It,/).click();
+      await page.locator('.portal-discovery-overlay').waitFor({state:'hidden'});
+      await page.waitForFunction(()=>window.__oldGarden!==window.__navScene.getObjectByName('interactive-garden'));
+      assert.equal(await page.locator('.planet-instructions').count(),0,'Transfers never repeat the initial planet guide');
+      await page.locator('.wandering-joystick').waitFor({state:'visible'});
+      await b(en.ROAMING_COPY.leaveButton).waitFor();
       assert.equal(await page.evaluate(() => window.__oldCanvas === document.querySelector('canvas')), true, 'Travel updates ecology without recreating WebGL');
       assert.equal(await page.evaluate(() => window.__oldGarden === window.__navScene.getObjectByName('interactive-garden')), false, 'Old biome is replaced');
       assert.ok(await page.evaluate(() => window.__disposedArt) > 0, 'Old SVG textures are disposed');
       console.log(`PASS: ${snapshot.id} biome, configured landmarks, glass exit and in-place travel`);
     }
     assert.equal(seen.length, 4); assert.equal(types.size, 12);
+    assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'Each guide opens once across all four planets and repeated rests');
+    await b(en.ROAMING_COPY.leaveButton).click();await b(en.another).click();
+    await page.locator('.portal-discovery-overlay[data-phase="complete"]').waitFor();
+    await b(en.portalDiscovery.resetRoute).click();
+    await page.locator('.portal-discovery-overlay[data-phase="ready"]').waitFor();
+    await b(en.ROAMING_COPY.leaveButton).waitFor();await b(en.stay).click();
+    assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'A new planet circuit does not reset guidance or exit access');
     assert.deepEqual(errors, []);
-    console.log('PASS: four distinct biomes / 12 prop types, exact angles, translated hints, safe landmark interaction and live portal switching.');
+    console.log('PASS: four biomes / 12 prop types, exact angles, safe portal switching, one entry guide and one first-stand exit guide, persistent bilingual Leave through repeated rests, all transfers and a new circuit.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

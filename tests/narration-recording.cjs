@@ -17,7 +17,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       } });
     });
     await actual.goto(base);
-    await actual.getByRole('button', { name: 'Begin Your Little Escape', exact: true }).click();
+    await actual.getByRole('button', { name: 'Find Your Calm Zone', exact: true }).click();
     await actual.waitForFunction(() => { const a = document.getElementById('intro-voice-en'); return a.src.endsWith('intro-voice-en.wav') && a.readyState >= 3 && a.currentTime > .1 && !a.paused; });
     assert.equal(await actual.locator('#intro-voice-zh').getAttribute('src'), null, 'Only the selected language is loaded initially');
     await actual.getByRole('button', { name: '中文', exact: true }).click();
@@ -56,7 +56,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     });
     const b = name => page.getByRole('button', { name, exact: true });
     await page.goto(base);
-    await b('Begin Your Little Escape').click();
+    await b('Find Your Calm Zone').click();
     await page.waitForFunction(() => { const a = document.getElementById('intro-voice-en'); return a.currentTime > .1 && !a.paused; });
     const rising = await page.evaluate(() => window.__voiceGains['intro-voice-en'].value);
     assert.ok(rising > 0 && rising < .8, 'Recorded voice fades in through GainNode');
@@ -69,12 +69,16 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await page.waitForFunction(() => !document.getElementById('intro-voice-en').paused && document.getElementById('intro-voice-en').currentTime > .1);
     assert.equal(await page.locator('#intro-voice-zh').evaluate(a => a.paused), true);
     assert.deepEqual(await page.evaluate(() => window.__sources), { 'intro-voice-en': 1, 'intro-voice-zh': 1 }, 'Media sources are reused when returning to a language');
+    await page.locator('#intro-voice-en').evaluate(a => { a.currentTime = a.duration - .05; });
     await b("I'm Ready →").click();
     assert.equal(await page.locator('#intro-voice-en').evaluate(a => a.paused), true);
     await b('Back').click();
+    await page.waitForFunction(() => { const a=document.getElementById('intro-voice-en'); return !a.paused && a.currentTime>.1; });
+    assert.equal(await b("I'm Ready →").count(),0,'Continue stays hidden until the recording ends');
+    await page.locator('#intro-voice-en').evaluate(a => { a.currentTime = a.duration - .05; });
     await b("I'm Ready →").click();
     await page.waitForTimeout(800);
-    assert.equal(await page.locator('#intro-voice-en').evaluate(a => a.paused), true, 'Quick continue leaves no late playback');
+    assert.equal(await page.locator('#intro-voice-en').evaluate(a => a.paused), true, 'Continuing leaves no late playback');
     await page.close();
 
     const unavailable = await browser.newPage({ reducedMotion: 'reduce' });
@@ -82,8 +86,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     unavailable.on('pageerror', e => errors.push(e.message));
     await unavailable.addInitScript(() => Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: undefined }));
     await unavailable.goto(base);
-    await unavailable.getByRole('button', { name: 'Begin Your Little Escape', exact: true }).click();
-    await unavailable.waitForTimeout(6800);
+    await unavailable.getByRole('button', { name: 'Find Your Calm Zone', exact: true }).click();
+    await unavailable.getByRole('button', {name:"I'm Ready →",exact:true}).waitFor();
     await unavailable.locator('.interlude-scene').click({ position: { x: 12, y: 12 } });
     await unavailable.locator('.quiz-scene').waitFor();
     await unavailable.close();
@@ -97,11 +101,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       Object.defineProperty(window, 'SpeechSynthesisUtterance', { configurable: true, value: function (text) { this.text = text; } });
       Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
         getVoices: () => [], addEventListener() {}, removeEventListener() {}, cancel() {},
-        speak: () => { window.__fallbackCount++; },
+        speak: utterance => { window.__fallbackCount++; setTimeout(() => utterance.onend?.(), 600); },
       } });
     });
     await failure.goto(base);
-    await failure.getByRole('button', { name: 'Begin Your Little Escape', exact: true }).click();
+    await failure.getByRole('button', { name: 'Find Your Calm Zone', exact: true }).click();
     await failure.waitForFunction(() => window.__fallbackCount === 1);
     await failure.waitForTimeout(500);
     assert.equal(await failure.evaluate(() => window.__fallbackCount), 1, 'Media error and play rejection only start one fallback');
@@ -109,6 +113,6 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await failure.locator('.quiz-scene').waitFor();
     await failure.close();
     assert.deepEqual(errors, [], 'Recorded narration and failure fallback have no uncaught errors');
-    console.log('PASS: optional recorded narration, 1.5s GainNode fade, selected language, media-source reuse, quick skip, unavailable speech and single fallback on load failure.');
+    console.log('PASS: optional recorded narration, 1.5s GainNode fade, selected language, media-source reuse, end-gated continuation, unavailable speech and single fallback on load failure.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

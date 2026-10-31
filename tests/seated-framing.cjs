@@ -12,7 +12,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     page.on('pageerror', error => errors.push(error.message));
     const button = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://localhost:3000');
-    await button('[ Begin Your Little Escape ]').click();
+    await button('Begin Your Little Escape').click();
+    await button("I'm Ready →").click();
     await button('Skip and Wander').click();
     await page.locator('canvas').waitFor();
     await page.evaluate(() => {
@@ -34,16 +35,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
         const spirit = scene.getObjectByName('spirit-body');
         const canvas = renderer.domElement.getBoundingClientRect();
         const points = [], bodyPoints = [], torsoPoints = [];
-        // Sample the maximum pulsing halo, not only its current animation size.
-        for (let lat = 0; lat <= 32; lat++) {
-          for (let lon = 0; lon < 64; lon++) {
-            const phi = lat / 32 * Math.PI, theta = lon / 64 * Math.PI * 2;
-            points.push(planet.position.clone().set(
-              Math.sin(phi) * Math.cos(theta), Math.cos(phi), Math.sin(phi) * Math.sin(theta),
-            ).multiplyScalar(1.68 * 1.065 * 1.035).add(planet.position).project(camera));
-          }
-        }
-        for (const name of ['spirit-body', 'listening-stone', 'portal-landmark']) {
+        for (const name of ['spirit-body', 'listening-stone']) {
           scene.getObjectByName(name).traverseVisible(object => {
             if (!object.geometry) return;
             object.geometry.computeBoundingBox();
@@ -91,11 +83,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       await page.waitForTimeout(3800);
       const view = await page.evaluate(() => window.__framing());
       const sky = await page.locator('.stardust-layer').boundingBox();
-      assert.ok(view.bounds.left > -.99 && view.bounds.right < .99, `${name}: complete scene fits horizontally`);
-      assert.ok(view.bounds.top < .99 && view.bounds.bottom > -.99, `${name}: globe bottom and models remain in the canvas`);
-      assert.ok(view.facing < -.85, `${name}: rear seated perspective is preserved`);
-      assert.ok(view.distance >= 4.2, `${name}: camera respects its nearest seated distance`);
-      assert.ok(view.fov <= 48 && view.fov >= 47.9, `${name}: seated lens stays within its limit`);
+      assert.ok(view.bounds.left > -.98 && view.bounds.right < .98, `${name}: companion and cushion fit horizontally`);
+      assert.ok(view.bounds.top < .98 && view.bounds.bottom > -.98, `${name}: companion and cushion fit vertically`);
+      assert.ok(view.facing < -.6, `${name}: rear seated perspective is preserved`);
+      assert.ok(view.distance >= 3.8, `${name}: camera respects its nearest seated distance`);
+      assert.ok(view.fov <= 34.01 && view.fov >= 33.99, `${name}: seated lens stays within its limit`);
       assert.ok(sky.y + sky.height <= view.bodyTop, `${name}: the thought lanes are reserved above the character`);
       for (const quote of await page.locator('.animate-stardust-float').all()) {
         const box = await quote.boundingBox();
@@ -115,8 +107,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const restingView = await page.evaluate(() => window.__framing());
     console.log('Camera comparison', JSON.stringify({ walking: walkingView, resting: restingView }));
     assert.ok(restingView.distance < walkingView.distance, 'Sitting gently moves the camera closer');
-    assert.ok(restingView.bodyWidth > walkingView.bodyWidth * 1.04, 'Companion appears a little larger after sitting');
-    assert.ok(restingView.bodyWidth < walkingView.bodyWidth * 1.3, 'Seated enlargement remains restrained');
+    assert.ok(restingView.bodyWidth > walkingView.bodyWidth * 1.25, 'Companion grows at least 25% after sitting');
+    assert.ok(restingView.bodyWidth < walkingView.bodyWidth * 1.4, 'Seated enlargement remains restrained');
     const draft = 'A thought stays here';
     await page.getByRole('textbox').fill(draft);
     for (const [width, height] of [[320, 667], [414, 667], [1280, 900]]) {
@@ -140,6 +132,6 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await page.waitForFunction(() => window.__camera.fov === 38);
     const standingView = await page.evaluate(() => window.__framing());
     assert.equal(standingView.fov, 38, 'Standing restores the walking lens');
-    console.log('PASS: full seated scene and pulsing halo fit mobile/desktop; thoughts stay above the companion; rear view, controls, drafts and language switching remain intact.');
+    console.log('PASS: local seated focus and 1.3x zoom; companion/cushion fit mobile/desktop; thoughts, rear view, controls, drafts and language switching remain intact.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

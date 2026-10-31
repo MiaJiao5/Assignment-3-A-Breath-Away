@@ -1,4 +1,8 @@
 import { PLANETS, PlanetId } from '../data/roamingData';
+import type { Language } from '../i18n/translations';
+import { INTRO_VOICE_URLS } from './introVoice';
+
+export const MUSIC_FADE_SECONDS = { in: 2.8, out: 2.2 } as const;
 
 /**
  * 《短暂漫游 (Brief Roaming)》治愈音频引擎
@@ -107,6 +111,14 @@ class SoundEngine {
   private noiseGain: GainNode | null = null;
   private noiseSource: AudioBufferSourceNode | null = null;
   private noiseLfo: OscillatorNode | null = null;
+  private preludeGain: GainNode | null = null;
+  private preludeNodes: AudioScheduledSourceNode[] = [];
+  private musicGain: GainNode | null = null;
+  private mediaSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
+  private musicSession = 0;
+  private musicCleanupTimer: number | null = null;
+  private voiceSession = 0;
+  private voiceStop: (() => void) | null = null;
 
   private loopTimer: number | null = null;
   private arpeggioTimer: number | null = null;
@@ -136,6 +148,298 @@ class SoundEngine {
 
   public unlock(): void {
     try { this.ensureContext(); } catch { window.dispatchEvent(new Event('breath-away-audio-error')); }
+  }
+
+  /** Smoothstep has a quiet start and a flat finish, avoiding the perceived
+   * late volume jump of a near-zero exponential fade. */
+  private fadeGain(param: AudioParam, target: number, duration: number): void {
+    if (!this.ctx) return;
+    const now = this.ctx.currentTime;
+    const start = Math.max(0, param.value);
+    if (typeof param.cancelAndHoldAtTime === 'function') param.cancelAndHoldAtTime(now);
+    else param.cancelScheduledValues(now);
+    param.setValueAtTime(start, now);
+    const curve = new Float32Array(65);
+    for (let i = 0; i < curve.length; i++) {
+      const t = i / (curve.length - 1);
+      curve[i] = start + (target - start) * t * t * (3 - 2 * t);
+    }
+    param.setValueCurveAtTime(curve, now, duration);
+  }
+
+  private mediaSource(element: HTMLMediaElement): MediaElementAudioSourceNode {
+    let source = this.mediaSources.get(element);
+    if (!source) {
+      source = this.ensureContext().createMediaElementSource(element);
+      this.mediaSources.set(element, source);
+    }
+    return source;
+  }
+
+  /** One selected-language voice at a time. Optional recordings use GainNode;
+   * system speech has its own low volume because Web Speech cannot be routed
+   * through a Web Audio gain. Missing recordings are never requested. */
+  public startIntroNarration(language: Language, text: string, onEnded: () => void): void {
+    this.stopIntroNarration();
+    const session = this.voiceSession;
+    let done = false;
+    let fallbackStarted = false;
+    const cleanup = new Set<() => void>();
+    const active = () => !done && session === this.voiceSession;
+    const clearWork = () => { cleanup.forEach(stop => stop()); cleanup.clear(); };
+    const later = (fn: () => void, ms: number) => {
+      const timer = window.setTimeout(() => { if (active()) fn(); }, ms);
+      cleanup.add(() => clearTimeout(timer));
+      return timer;
+    };
+    const finish = () => {
+      if (!active()) return;
+      done = true;
+      clearWork();
+      this.voiceStop = null;
+      onEnded();
+    };
+    this.voiceStop = () => { done = true; clearWork(); };
+
+    const speechFallback = () => {
+      if (!active() || fallbackStarted) return;
+      fallbackStarted = true;
+      clearWork();
+      if (!window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') {
+        later(finish, 6000);
+        return;
+      }
+      const synthesis = window.speechSynthesis;
+      let started = false;
+      const speak = () => {
+        if (!active() || started) return;
+        started = true;
+        try {
+          const utterance = new SpeechSynthesisUtterance(text);
+          const voices = synthesis.getVoices().filter(voice => voice.lang.toLowerCase().startsWith(language));
+          utterance.voice = voices.find(voice => /samantha|karen|moira|ting|xiao|hui|female|女/i.test(voice.name)) ?? voices.find(voice => voice.localService) ?? voices[0] ?? null;
+          utterance.lang = language === 'zh' ? 'zh-CN' : 'en-US';
+          utterance.rate = .88;
+          utterance.pitch = 1.04;
+          utterance.volume = this.isMuted ? 0 : .48;
+          utterance.onend = finish;
+          utterance.onerror = () => later(finish, 6000);
+          cleanup.add(() => { utterance.onend = null; utterance.onerror = null; synthesis.cancel(); });
+          synthesis.speak(utterance);
+          // A browser may accept speak() but never emit start/end events.
+          later(finish, 25000);
+        } catch { later(finish, 6000); }
+      };
+      try {
+        if (synthesis.getVoices().length) speak();
+        else {
+          synthesis.addEventListener('voiceschanged', speak, { once: true });
+          cleanup.add(() => synthesis.removeEventListener('voiceschanged', speak));
+          later(speak, 400);
+        }
+      } catch { later(finish, 6000); }
+    };
+
+    const url = INTRO_VOICE_URLS[language];
+    const audio = document.getElementById(`intro-voice-${language}`) as HTMLAudioElement | null;
+    if (!url || !audio) { speechFallback(); return; }
+    try {
+      const ctx = this.ensureContext();
+      const gain = ctx.createGain();
+      gain.gain.value = .0001;
+      gain.connect(this.masterGain!);
+      const source = this.mediaSource(audio);
+      source.connect(gain);
+      audio.src = url;
+      audio.currentTime = 0;
+      audio.volume = 1;
+      audio.loop = false;
+      const failed = () => speechFallback();
+      audio.addEventListener('ended', finish);
+      audio.addEventListener('error', failed);
+      cleanup.add(() => {
+        audio.removeEventListener('ended', finish);
+        audio.removeEventListener('error', failed);
+        audio.pause();
+        source.disconnect();
+        gain.disconnect();
+      });
+      const loadTimeout = later(speechFallback, 4000);
+      audio.play().then(() => {
+        if (!active() || fallbackStarted) return;
+        clearTimeout(loadTimeout);
+        this.fadeGain(gain.gain, .8, 1.5);
+      }).catch(failed);
+    } catch { speechFallback(); }
+  }
+
+  public stopIntroNarration(): void {
+    this.voiceSession++;
+    this.voiceStop?.();
+    this.voiceStop = null;
+  }
+
+  /** A nearly subliminal maj7 drone, pink breeze and six-second breath. */
+  public startPreludeAmbience(): void {
+    if (this.isMuted || this.preludeGain) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!this.masterGain) return;
+      const now = ctx.currentTime;
+      this.masterGain.gain.cancelScheduledValues(now);
+      this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
+      this.masterGain.gain.linearRampToValueAtTime(0.75, now + 0.45);
+      const bus = ctx.createGain();
+      bus.gain.setValueAtTime(0.0001, now);
+      bus.gain.exponentialRampToValueAtTime(0.022, now + 1.8);
+      bus.connect(this.masterGain);
+
+      const breath = ctx.createGain();
+      breath.gain.value = 1;
+      breath.connect(bus);
+
+      const breathLfo = ctx.createOscillator();
+      const breathDepth = ctx.createGain();
+      breathLfo.type = 'sine';
+      breathLfo.frequency.value = 1 / 6;
+      breathDepth.gain.value = 0.12;
+      breathLfo.connect(breathDepth);
+      breathDepth.connect(breath.gain);
+      breathLfo.start(now);
+
+      const buffer = ctx.createBuffer(1, ctx.sampleRate * 3, ctx.sampleRate);
+      const samples = buffer.getChannelData(0);
+      // Paul Kellet-style pink-noise approximation, kept deliberately quiet.
+      let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
+      for (let i = 0; i < samples.length; i++) {
+        const white = Math.random() * 2 - 1;
+        b0 = 0.99886 * b0 + white * 0.0555179;
+        b1 = 0.99332 * b1 + white * 0.0750759;
+        b2 = 0.969 * b2 + white * 0.153852;
+        b3 = 0.8665 * b3 + white * 0.3104856;
+        b4 = 0.55 * b4 + white * 0.5329522;
+        b5 = -0.7616 * b5 - white * 0.016898;
+        samples[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.018;
+        b6 = white * 0.115926;
+      }
+      const breeze = ctx.createBufferSource();
+      breeze.buffer = buffer;
+      breeze.loop = true;
+      const breezeFilter = ctx.createBiquadFilter();
+      breezeFilter.type = 'bandpass';
+      breezeFilter.frequency.value = 520;
+      breezeFilter.Q.value = 0.45;
+      breeze.connect(breezeFilter);
+      breezeFilter.connect(breath);
+      breeze.start(now);
+
+      // A2 major seventh: root, major third, fifth and major seventh. Each
+      // partial is static and very soft, so it reads as warmth, not melody.
+      const drones = [110, 138.59, 164.81, 207.65].map((frequency, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = frequency;
+        osc.detune.value = (index - 1.5) * 1.8;
+        gain.gain.value = index === 0 ? 0.12 : 0.065;
+        osc.connect(gain);
+        gain.connect(breath);
+        osc.start(now);
+        return osc;
+      });
+
+      this.preludeGain = bus;
+      this.preludeNodes = [breeze, breathLfo, ...drones];
+    } catch {
+      // The experience remains usable when audio is unavailable.
+    }
+  }
+
+  /** Lift the bed into the warp, then leave it at a quiet planet level. */
+  public liftPreludeForWarp(): void {
+    if (!this.ctx || !this.preludeGain) return;
+    const now = this.ctx.currentTime;
+    this.preludeGain.gain.cancelScheduledValues(now);
+    this.preludeGain.gain.setValueAtTime(Math.max(0.0001, this.preludeGain.gain.value), now);
+    this.preludeGain.gain.linearRampToValueAtTime(0.034, now + 0.55);
+    this.preludeGain.gain.exponentialRampToValueAtTime(0.012, now + 1.5);
+  }
+
+  /** Keep the same air bed below the planet scene or below its main music. */
+  public setPreludeBehindMusic(isBehindMusic: boolean): void {
+    if (!this.ctx || !this.preludeGain) return;
+    const now = this.ctx.currentTime;
+    this.preludeGain.gain.cancelScheduledValues(now);
+    this.preludeGain.gain.setValueAtTime(Math.max(0.0001, this.preludeGain.gain.value), now);
+    this.preludeGain.gain.exponentialRampToValueAtTime(isBehindMusic ? 0.0045 : 0.012, now + 1.4);
+  }
+
+  public stopPreludeAmbience(durationSec = 1.2): void {
+    if (!this.ctx || !this.preludeGain) return;
+    const now = this.ctx.currentTime;
+    const bus = this.preludeGain;
+    const nodes = this.preludeNodes;
+    bus.gain.cancelScheduledValues(now);
+    bus.gain.setValueAtTime(Math.max(0.0001, bus.gain.value), now);
+    bus.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
+    this.preludeGain = null;
+    this.preludeNodes = [];
+    window.setTimeout(() => {
+      nodes.forEach(node => { try { node.stop(); node.disconnect(); } catch { /* already stopped */ } });
+      bus.disconnect();
+    }, durationSec * 1000 + 80);
+  }
+
+  /** A soft water-ripple / wind-chime overtone for questionnaire choices. */
+  public playQuizRipple(pitchOffset = 0): void {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!this.masterGain) return;
+      const now = ctx.currentTime;
+      [0, 7].forEach((semitones, index) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        const base = 520 + pitchOffset;
+        osc.type = 'sine';
+        osc.frequency.value = base * Math.pow(2, semitones / 12);
+        gain.gain.setValueAtTime(0.0001, now + index * 0.045);
+        gain.gain.linearRampToValueAtTime(index === 0 ? 0.065 : 0.032, now + 0.025 + index * 0.045);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.72 + index * 0.08);
+        osc.connect(gain);
+        gain.connect(this.masterGain!);
+        osc.start(now + index * 0.045);
+        osc.stop(now + 0.82);
+      });
+    } catch {
+      // Ignore audio errors if blocked.
+    }
+  }
+
+  /** Short proximity chimes; the garden applies entry hysteresis and cooldowns. */
+  public playGardenChime(variant = 0): void {
+    if (this.isMuted) return;
+    try {
+      const ctx = this.ensureContext();
+      if (!this.masterGain) return;
+      const now = ctx.currentTime;
+      const frequency = [659.25, 739.99, 783.99, 880, 987.77][variant % 5];
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(frequency, now);
+      osc.frequency.exponentialRampToValueAtTime(frequency * 1.004, now + .7);
+      gain.gain.setValueAtTime(.0001, now);
+      gain.gain.linearRampToValueAtTime(.027, now + .025);
+      gain.gain.exponentialRampToValueAtTime(.0001, now + .9);
+      osc.connect(gain);
+      gain.connect(this.masterGain);
+      osc.onended = () => { osc.disconnect(); gain.disconnect(); };
+      osc.start(now);
+      osc.stop(now + 1);
+    } catch {
+      window.dispatchEvent(new Event('breath-away-audio-error'));
+    }
   }
 
   /**
@@ -211,6 +515,27 @@ class SoundEngine {
       if (!this.masterGain) return;
       const now = ctx.currentTime;
 
+      // A filtered noise swell supplies the soft airflow between scenes.
+      const whooshBuffer = ctx.createBuffer(1, Math.round(ctx.sampleRate * 1.55), ctx.sampleRate);
+      const whooshSamples = whooshBuffer.getChannelData(0);
+      for (let i = 0; i < whooshSamples.length; i++) whooshSamples[i] = Math.random() * 2 - 1;
+      const whoosh = ctx.createBufferSource();
+      const whooshFilter = ctx.createBiquadFilter();
+      const whooshGain = ctx.createGain();
+      whoosh.buffer = whooshBuffer;
+      whooshFilter.type = 'bandpass';
+      whooshFilter.frequency.setValueAtTime(260, now);
+      whooshFilter.frequency.exponentialRampToValueAtTime(1250, now + 0.9);
+      whooshFilter.Q.value = 0.75;
+      whooshGain.gain.setValueAtTime(0.0001, now);
+      whooshGain.gain.linearRampToValueAtTime(0.055, now + 0.65);
+      whooshGain.gain.exponentialRampToValueAtTime(0.0001, now + 1.5);
+      whoosh.connect(whooshFilter);
+      whooshFilter.connect(whooshGain);
+      whooshGain.connect(this.masterGain);
+      whoosh.start(now);
+      whoosh.stop(now + 1.55);
+
       const shimmerNotes = [293.66, 369.99, 440.0, 554.37, 659.25, 880.0];
       shimmerNotes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
@@ -239,6 +564,8 @@ class SoundEngine {
   public startPlanetMusic(planetId: PlanetId): void {
     const ctx = this.ensureContext();
     this.stopPlanetMusicImmediate();
+    const session = this.musicSession;
+    this.setPreludeBehindMusic(true);
 
     this.currentPlanet = planetId;
     this.isPlaying = true;
@@ -251,6 +578,10 @@ class SoundEngine {
       this.masterGain.gain.setValueAtTime(this.isMuted ? 0.0001 : 0.75, now);
     }
 
+    this.musicGain = ctx.createGain();
+    this.musicGain.gain.setValueAtTime(0, ctx.currentTime);
+    this.musicGain.connect(this.masterGain!);
+
     const planetConfig = PLANETS[planetId];
 
     // 优先检查是否配置了外部 <audio> 音频路径
@@ -260,13 +591,24 @@ class SoundEngine {
         this.externalAudioEl = audioEl;
         audioEl.src = planetConfig.externalAudioUrl;
         audioEl.loop = true;
-        audioEl.volume = this.isMuted ? 0 : 0.75;
-        audioEl.play().catch(() => window.dispatchEvent(new Event('breath-away-audio-error')));
+        audioEl.currentTime = 0;
+        audioEl.volume = 1;
+        const bus = this.musicGain;
+        bus.gain.cancelScheduledValues(ctx.currentTime);
+        bus.gain.setValueAtTime(0, ctx.currentTime);
+        this.mediaSource(audioEl).connect(bus);
+        audioEl.play().then(() => {
+          if (session !== this.musicSession || !this.isPlaying) return;
+          this.fadeGain(bus.gain, 1, MUSIC_FADE_SECONDS.in);
+        }).catch(() => {
+          if (session === this.musicSession && this.isPlaying) window.dispatchEvent(new Event('breath-away-audio-error'));
+        });
         return;
       }
     }
 
     const profile = MUSICAL_PROFILES[planetId];
+    this.fadeGain(this.musicGain.gain, 1, MUSIC_FADE_SECONDS.in);
 
     // 启动粉红/柔焦环境白噪音层
     this.startWhiteNoiseLayer(profile);
@@ -296,7 +638,7 @@ class SoundEngine {
     const filter = this.ctx.createBiquadFilter();
     filter.type = 'lowpass';
     filter.frequency.setValueAtTime(profile.filterFreq, now);
-    filter.connect(this.masterGain);
+    filter.connect(this.musicGain ?? this.masterGain);
 
     chord.forEach((freq, i) => {
       if (!this.ctx) return;
@@ -342,7 +684,7 @@ class SoundEngine {
     gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.2);
 
     osc.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.musicGain ?? this.masterGain);
 
     osc.start(now);
     osc.stop(now + 2.3);
@@ -393,7 +735,7 @@ class SoundEngine {
 
     noise.connect(filter);
     filter.connect(gain);
-    gain.connect(this.masterGain);
+    gain.connect(this.musicGain ?? this.masterGain);
 
     noise.start();
     lfo.start();
@@ -405,9 +747,6 @@ class SoundEngine {
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
-    if (this.externalAudioEl) {
-      this.externalAudioEl.volume = muted ? 0 : 0.75;
-    }
     if (this.ctx && this.masterGain) {
       const now = this.ctx.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);
@@ -434,46 +773,17 @@ class SoundEngine {
    * 点击右上角 [ 👋 先去忙啦 ] 时，音乐音量在 1.4 秒内平滑淡出
    */
   public fadeOutAndStop(durationSec = 1.4): void {
-    this.isPlaying = false;
-    if (this.loopTimer !== null) {
-      clearInterval(this.loopTimer);
-      this.loopTimer = null;
-    }
-    if (this.arpeggioTimer !== null) {
-      clearInterval(this.arpeggioTimer);
-      this.arpeggioTimer = null;
-    }
-
-    if (this.externalAudioEl && !this.externalAudioEl.paused) {
-      const audio = this.externalAudioEl;
-      const startVol = audio.volume;
-      const steps = 20;
-      let currentStep = 0;
-      const fadeInterval = window.setInterval(() => {
-        currentStep++;
-        audio.volume = Math.max(0, startVol * (1 - currentStep / steps));
-        if (currentStep >= steps) {
-          clearInterval(fadeInterval);
-          audio.pause();
-        }
-      }, (durationSec * 1000) / steps);
-    }
-
-    if (this.ctx && this.masterGain) {
-      const now = this.ctx.currentTime;
-      this.masterGain.gain.cancelScheduledValues(now);
-      this.masterGain.gain.setValueAtTime(Math.max(0.0001, this.masterGain.gain.value), now);
-      this.masterGain.gain.exponentialRampToValueAtTime(0.0001, now + durationSec);
-
-      window.setTimeout(() => {
-        this.cleanupNoiseNodes();
-      }, durationSec * 1000 + 100);
-    } else {
-      this.cleanupNoiseNodes();
-    }
+    this.fadeOutPlanetMusic(durationSec);
+    this.stopPreludeAmbience(durationSec);
+    this.stopIntroNarration();
   }
 
   public stopPlanetMusicImmediate(): void {
+    this.musicSession++;
+    if (this.musicCleanupTimer !== null) {
+      clearTimeout(this.musicCleanupTimer);
+      this.musicCleanupTimer = null;
+    }
     this.isPlaying = false;
     if (this.loopTimer !== null) {
       clearInterval(this.loopTimer);
@@ -485,8 +795,44 @@ class SoundEngine {
     }
     if (this.externalAudioEl) {
       this.externalAudioEl.pause();
+      this.mediaSources.get(this.externalAudioEl)?.disconnect();
+      this.externalAudioEl = null;
+    }
+    if (this.musicGain) {
+      this.musicGain.disconnect();
+      this.musicGain = null;
     }
     this.cleanupNoiseNodes();
+  }
+
+  public fadeOutPlanetMusic(durationSec: number = MUSIC_FADE_SECONDS.out): void {
+    const session = ++this.musicSession;
+    if (this.musicCleanupTimer !== null) clearTimeout(this.musicCleanupTimer);
+    this.isPlaying = false;
+    if (this.loopTimer !== null) { clearInterval(this.loopTimer); this.loopTimer = null; }
+    if (this.arpeggioTimer !== null) { clearInterval(this.arpeggioTimer); this.arpeggioTimer = null; }
+    const musicBus = this.musicGain;
+    if (this.ctx && musicBus) {
+      this.fadeGain(musicBus.gain, 0, durationSec);
+    }
+    this.musicCleanupTimer = window.setTimeout(() => {
+      if (session !== this.musicSession) return;
+      this.musicCleanupTimer = null;
+      this.stopPlanetMusicImmediate();
+    }, durationSec * 1000 + 80);
+  }
+
+  public stopAllImmediate(): void {
+    this.stopIntroNarration();
+    this.stopPlanetMusicImmediate();
+    if (this.preludeGain) {
+      const nodes = this.preludeNodes;
+      const bus = this.preludeGain;
+      this.preludeGain = null;
+      this.preludeNodes = [];
+      nodes.forEach(node => { try { node.stop(); node.disconnect(); } catch { /* already stopped */ } });
+      bus.disconnect();
+    }
   }
 
   private cleanupNoiseNodes(): void {

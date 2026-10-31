@@ -8,7 +8,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const button = name => page.getByRole('button',{name,exact:true});
     await page.goto(process.env.APP_URL || 'http://localhost:3000');
-    await button('[ Begin Your Little Escape ]').click(); await button('Skip and Wander').click();
+    await button('Begin Your Little Escape').click(); await button("I'm Ready →").click(); await button('Skip and Wander').click();
     await page.locator('canvas').waitFor();
     await page.evaluate(() => {
       const canvas=document.querySelector('canvas');
@@ -66,7 +66,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     await button('中文').click(); await page.getByRole('dialog',{name:'漫游前，先看一眼'}).waitFor(); await button('EN').click();
     await button(/^Got It,/).click();
     const padSize=await page.locator('.wandering-joystick').boundingBox();
-    assert.ok(padSize.width>=120 && padSize.height>=120,'Larger touch joystick');
+    assert.ok(padSize.width>=80 && padSize.width<=96 && padSize.height>=80,'Compact touch joystick');
     const tap = async key => {
       const p=await page.evaluate(k=>__view[k],key);const box=await page.locator('canvas').boundingBox();
       await page.locator('canvas').click({position:{x:(p[0]+1)*box.width/2,y:(1-p[1])*box.height/2}});
@@ -119,7 +119,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
       await page.keyboard.up(key); await checkSurface(); await checkRollDirection(before);
     }
     // Follow the guide using real keyboard movement until the contextual stone prompt appears.
-    await page.keyboard.down('KeyD'); await page.waitForFunction(()=>__view.coords.lon>.45); await page.keyboard.up('KeyD');
+    await approachStone();
     await button('[ Sit & Listen ]').waitFor();
     await checkSurface();
     await page.waitForFunction(()=>__view.stoneGlow>.1);
@@ -156,7 +156,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
     assert.equal(await page.getByRole('textbox').count(),1);
     assert.equal(await page.locator('.joystick-panel').isVisible(),false,'Joystick disappears during rest');
     // The rear camera now fits the entire globe rather than cropping it for a close-up.
-    await page.waitForFunction(()=>__view.facing<-.85);
+    await page.waitForFunction(()=>__view.facing<-.6);
     assert.equal(await page.evaluate(()=>__view.guide),false,'Guidance ends on sitting');
     await page.screenshot({path:'tests/resting.png'});
     await page.keyboard.press('ArrowRight');

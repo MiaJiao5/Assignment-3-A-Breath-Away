@@ -19,7 +19,7 @@ export const BottomPlanetController: React.FC<BottomPlanetControllerProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const heldKeysRef = useRef<Set<string>>(new Set());
 
-  const MAX_RADIUS = 32;
+  const MAX_RADIUS = 23;
 
   // 键盘 WASD / 方向键支持（并在窗口失焦时自动清空按键）
   useEffect(() => {

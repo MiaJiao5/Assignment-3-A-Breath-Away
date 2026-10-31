@@ -9,11 +9,27 @@ A Breath Away builds on the existing course assignment's React interface, proced
 - [React](https://react.dev/) and React DOM render the application.
 - [Three.js](https://threejs.org/) renders the procedural planet and character scene, including its RoomEnvironment helper.
 - [Vite](https://vite.dev/), [TypeScript](https://www.typescriptlang.org/), and [Tailwind CSS](https://tailwindcss.com/) support development, builds, and styling.
-- The browser's Web Audio API generates the music, interface sounds, and ambient noise. Default planet audio uses synthesized sound rather than recorded tracks.
+- The browser's Web Audio API generates interface sounds and ambient noise, and controls the recorded planet music with smooth gain envelopes. Web Speech provides optional system narration when no voice recording is configured.
+- The mushroom cushion, spiral portal, surface anchors, particles, and footprints are drawn with Three.js; the twelve biome-specific plant illustrations use original SVG paths, gradients and soft-glow filters created with Codex assistance. No third-party plant image asset is required.
 - [Playwright](https://playwright.dev/) supports the browser regression checks.
 
 See package.json and bun.lock for the project's complete dependency inventory. Dependencies retain their respective licenses.
 
 ## Fonts and visuals
 
-Noto Sans SC, Noto Serif SC, and Plus Jakarta Sans are requested through Google Fonts, with local system-font fallbacks. The planet textures, background gradients, particles, and spirit visuals are produced by application code. No new stock photography, image assets, or external recordings were introduced for the bilingual interface.
+The landing title uses Ballet by Omnibus-Type / Maximiliano Sproviero, distributed from the Google Fonts repository under the SIL Open Font License. The original font and its license are bundled in `public/fonts/` so the title does not rely on a remote font request.
+
+Noto Sans SC, Noto Serif SC, and Plus Jakarta Sans are requested through Google Fonts, with local system-font fallbacks. The planet textures, background gradients, aura orb, headphone SVG, particles, and spirit visuals are produced by application code. No stock photography or third-party image asset is required.
+
+## Supplied music
+
+The project owner supplied these four recordings. Copies in `public/audio/` preserve the original audio without transcoding or trimming:
+
+| Planet | Recording |
+| --- | --- |
+| Omega / Amber Sun | Copper Afternoon |
+| Delta / Mint Breeze | Sunlight on the Moss |
+| Sigma / Zero-Gravity Sky | Midday Horizon |
+| Psi / Quiet Starsea | Last Active Sensor |
+
+The project owner also supplied the headphone-page recordings: `voice_en_kokoro.wav` for English and `voice_zh.mp3` for Chinese. They are copied without conversion to `intro-voice-en.wav` and `intro-voice-zh.mp3`. Successful recorded playback replaces system narration completely; system speech remains a failure fallback.

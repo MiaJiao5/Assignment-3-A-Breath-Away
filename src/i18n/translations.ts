@@ -7,6 +7,14 @@ const en = {
     "welcome": "Take a few minutes for yourself. Leave the noise outside for a little while.",
     "startButton": "Begin Your Little Escape"
   },
+  "interlude": {
+    "title": "A Moment to Tune In",
+    "firstLine": "Take a few minutes for yourself. Leave the noise outside for a little while.",
+    "secondLine": "🎧 Put on your headphones for a gentle audio journey",
+    "headphonesLabel": "Headphones with soft sound ripples",
+    "ready": "I'm Ready →",
+    "tapToContinue": "You can also tap anywhere to continue."
+  },
   "QUIZ_QUESTIONS": [
     {
       "id": 1,
@@ -97,25 +105,29 @@ const en = {
       "name": "Amber Sun",
       "fullName": "Ω-01 · Amber Sun",
       "subtitle": "Golden fields and a little sunlit warmth to unwind in.",
-      "noiseLabel": "Wheatfield breeze"
+      "noiseLabel": "Wheatfield breeze",
+      "biomeHint": "Wander among maple trees, golden wheat and warm berry bushes. Tiny leaves may follow your footsteps."
     },
     "DELTA_02": {
       "name": "Mint Breeze",
       "fullName": "Δ-02 · Mint Breeze",
       "subtitle": "Cool morning mist and a breeze through the leaves.",
-      "noiseLabel": "Morning leaves"
+      "noiseLabel": "Morning leaves",
+      "biomeHint": "Meet cloud trees, tender grasses and mint mushrooms. A few morning dewdrops are waiting to say hello."
     },
     "SIGMA_03": {
       "name": "Zero-Gravity Sky",
       "fullName": "Σ-03 · Zero-Gravity Sky",
       "subtitle": "Clear your mind among weightless clouds.",
-      "noiseLabel": "Cloud currents"
+      "noiseLabel": "Cloud currents",
+      "biomeHint": "Drift past little clouds, dandelions and pastel pinwheels. Watch their soft fluff float away."
     },
     "PSI_04": {
       "name": "Quiet Starsea",
       "fullName": "Ψ-04 · Quiet Starsea",
       "subtitle": "Gentle stardust woven from twilight pink and dreamy blue.",
-      "noiseLabel": "Starsea tides"
+      "noiseLabel": "Starsea tides",
+      "biomeHint": "Explore glowing jellyfish mushrooms, rounded crystals and moon reeds. They shine a little brighter as you pass."
     }
   },
   "title": "A Breath Away",
@@ -151,6 +163,9 @@ const en = {
   "right": "Walk Right",
   "portalNav": "Find Portal",
   "rockNav": "Find Listening Stone",
+  "stoneLabel": "Listening Stone",
+  "portalLabel": "Star Portal",
+  "gardenHint": "Wander past the flowers and star trees. They may have a little surprise for you.",
   "joystick": "Wandering Joystick",
   "joystickHint": "Drag the joystick to walk, or use arrow keys / WASD",
   "stageHint": "Use the joystick to approach the Listening Stone, then choose Sit & Listen above the joystick.",
@@ -188,22 +203,21 @@ const en = {
   },
   "planetGuide": {
     "title": "A Little Guide to Your Planet",
-    "subtitle": "There is no hurry. Here is how to find a little quiet.",
+    "subtitle": "Use the controls below to explore.",
     "steps": [
       {
-        "title": "Follow the light",
-        "body": "Use the joystick to walk. Follow the glowing arc toward the Listening Stone."
+        "title": "Move around",
+        "body": "Drag the joystick below. WASD and arrow keys work too."
       },
       {
-        "title": "Sit and listen",
-        "body": "Walk close to the stone, then choose Sit & Listen above the joystick. The view will ease in behind you."
+        "title": "Listening Stone",
+        "body": "Walk close, then tap Sit & Listen above the joystick for music and a closer view. Tap Stand Up to continue."
       },
       {
-        "title": "Let a thought float",
-        "body": "After five seconds of music, leave a little thought and let it drift away. Stand Up when you feel ready."
+        "title": "Star Portal",
+        "body": "After resting, follow the light here. Walk close and tap Enter Portal above the joystick to visit another planet."
       }
     ],
-    "controls": "You can also move with WASD or arrow keys. After resting, choose Stand Up and follow the light to the portal.",
     "confirm": "Got It, Let’s Wander"
   }
 };
@@ -213,12 +227,20 @@ type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQuestion[]
 const zh: Copy = {
   "INTRO_COPY": {
     "welcome": "给自己几分钟，把外面的喧闹暂时留在门外。",
-    "startButton": "开始短暂漫游"
+    "startButton": "开启短暂漫游"
+  },
+  "interlude": {
+    "title": "先让声音轻轻靠近",
+    "firstLine": "给自己留几分钟吧，把外面的喧嚣暂时留在门外。",
+    "secondLine": "🎧 建议戴上耳机，开启这段温柔的声音漫游",
+    "headphonesLabel": "耳机与轻柔扩散的声波",
+    "ready": "准备好了 →",
+    "tapToContinue": "也可以轻点空白处继续。"
   },
   "QUIZ_QUESTIONS": [
     {
       "id": 1,
-      "question": "Q1：脑海里还没散去的背景音，听起来像是……",
+      "question": "脑海里还没散去的背景音，听起来像是……",
       "options": [
         {
           "value": "A",
@@ -239,7 +261,7 @@ const zh: Copy = {
     },
     {
       "id": 2,
-      "question": "Q2：此刻，你想把注意力收回到哪里？",
+      "question": "此刻，你想把注意力收回到哪里？",
       "options": [
         {
           "value": "A",
@@ -260,7 +282,7 @@ const zh: Copy = {
     },
     {
       "id": 3,
-      "question": "Q3：闭上眼深呼吸，以下哪个地方是你最想去的？",
+      "question": "闭上眼深呼吸，以下哪个地方是你最想去的？",
       "options": [
         {
           "value": "A",
@@ -305,25 +327,29 @@ const zh: Copy = {
       "name": "琥珀暖阳",
       "fullName": "Ω-01 · 琥珀暖阳",
       "subtitle": "金黄麦浪与晒过太阳的微温松弛",
-      "noiseLabel": "麦浪微风"
+      "noiseLabel": "麦浪微风",
+      "biomeHint": "走过红枫、金麦和暖橘浆果丛，看看有没有小枫叶跟上你的脚步。"
     },
     "DELTA_02": {
       "name": "薄荷晨风",
       "fullName": "Δ-02 · 薄荷晨风",
       "subtitle": "穿过树叶的清凉晨风",
-      "noiseLabel": "林间晨风"
+      "noiseLabel": "林间晨风",
+      "biomeHint": "去认识云朵树、嫩草和薄荷小蘑菇吧，清晨露珠正等着与你打招呼。"
     },
     "SIGMA_03": {
       "name": "晴空零度",
       "fullName": "Σ-03 · 晴空零度",
       "subtitle": "无重力云端上的澄澈放空",
-      "noiseLabel": "云端气流"
+      "noiseLabel": "云端气流",
+      "biomeHint": "经过小云朵、蒲公英和粉紫风车，看几缕软绒绒的光点轻轻飘远。"
     },
     "PSI_04": {
       "name": "静谧星海",
       "fullName": "Ψ-04 · 静谧星海",
       "subtitle": "暮光与梦幻星尘，轻轻环绕着你",
-      "noiseLabel": "星海潮汐"
+      "noiseLabel": "星海潮汐",
+      "biomeHint": "找找水母小蘑菇、星光水晶和弯月芦苇，你经过时，它们会悄悄亮起来。"
     }
   },
   "title": "一息之外",
@@ -359,6 +385,9 @@ const zh: Copy = {
   "right": "向右走",
   "portalNav": "寻找传送门",
   "rockNav": "寻找聆听石",
+  "stoneLabel": "聆听石",
+  "portalLabel": "星光传送门",
+  "gardenHint": "走近小花和星星树，听听它们藏着的小惊喜。",
   "joystick": "漫步摇杆",
   "joystickHint": "拖动摇杆漫步，也可以使用方向键或 WASD",
   "stageHint": "用摇杆走近聆听石，再点摇杆上方的「坐下听歌」。",
@@ -396,22 +425,21 @@ const zh: Copy = {
   },
   "planetGuide": {
     "title": "漫游前，先看一眼",
-    "subtitle": "不赶时间，先认识这颗小星球。",
+    "subtitle": "用下方控件，开始探索。",
     "steps": [
       {
-        "title": "跟着光走",
-        "body": "用摇杆移动小精灵，沿着发光弧线去找聆听石。"
+        "title": "移动小精灵",
+        "body": "拖动下方摇杆移动，也可以使用 WASD 或方向键。"
       },
       {
-        "title": "坐下听听",
-        "body": "走近聆听石，点摇杆上方的「坐下听歌」。镜头会慢慢来到你的身后。"
+        "title": "聆听石",
+        "body": "走近后，点击摇杆上方的「坐下听歌」，音乐会渐渐响起，镜头也会拉近。点击「起身」继续探索。"
       },
       {
-        "title": "放飞一点心事",
-        "body": "听五秒音乐后，可以写几句话，让它们飘向星空。歇好后，点「起身」。"
+        "title": "传送门",
+        "body": "听完歌后起身，跟着光走近传送门。点击摇杆上方的「进入传送门」，前往下一颗星球。"
       }
     ],
-    "controls": "也可以用 WASD 或方向键移动。歇好后点「起身」，柔光会带你去传送门。",
     "confirm": "知道啦，开始漫游"
   }
 };

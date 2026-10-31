@@ -29,15 +29,17 @@ const { pathToFileURL } = require('node:url');
    }); assert.equal(overlaps, false, 'Toggle does not overlap header actions');
  };
  await page.goto(base);
- await has(en.INTRO_COPY.welcome);
+ await button(en.INTRO_COPY.startButton).waitFor();
  assert.equal(await button(en.ROAMING_COPY.leaveButton).count(), 0, 'No farewell action on onboarding');
  for (const width of [320,375,390,414]) { await page.setViewportSize({width,height:667}); await fit(); }
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.locator('html').getAttribute('lang'), 'en');
- await toggle('中文'); await has(zh.INTRO_COPY.welcome);
+ await toggle('中文'); await button(zh.INTRO_COPY.startButton).waitFor();
  assert.equal(await page.getByRole('group').getAttribute('aria-label'), zh.switchLanguage);
- await page.reload(); await has(zh.INTRO_COPY.welcome); // saved preference
- await toggle('EN'); await button(`[ ${en.INTRO_COPY.startButton} ]`).click();
+ await page.reload(); await button(zh.INTRO_COPY.startButton).waitFor(); // saved preference
+ await toggle('EN'); await button(en.INTRO_COPY.startButton).click();
+ await has(en.interlude.firstLine); await toggle('中文'); await has(zh.interlude.secondLine); await toggle('EN');
+ await button(en.interlude.ready).click();
  for (let i=0; i<3; i++) {
    await has(en.QUIZ_QUESTIONS[i].question);
    assert.equal(await button(en.ROAMING_COPY.leaveButton).count(),0,'No farewell action in quiz');
@@ -49,12 +51,12 @@ const { pathToFileURL } = require('node:url');
    if (i > 0) {
      await button(en.back).click();
      await toggle('中文');
-     assert.equal(await button('A ' + zh.QUIZ_QUESTIONS[i-1].options[0].label).getAttribute('aria-pressed'), 'true');
-     await button('A ' + zh.QUIZ_QUESTIONS[i-1].options[0].label).click();
+     assert.equal(await button(zh.QUIZ_QUESTIONS[i-1].options[0].label).getAttribute('aria-pressed'), 'true');
+     await button(zh.QUIZ_QUESTIONS[i-1].options[0].label).click();
      await has(zh.QUIZ_QUESTIONS[i].question);
      await toggle('EN');
    }
-   await button('A ' + en.QUIZ_QUESTIONS[i].options[0].label).click();
+   await button(en.QUIZ_QUESTIONS[i].options[0].label).click();
  }
  await has(en.gathering); await toggle('中文'); await has(zh.tuning); await toggle('EN');
  await page.locator('canvas').waitFor();
@@ -143,15 +145,15 @@ const { pathToFileURL } = require('node:url');
  await button(en.ROAMING_COPY.leaveButton).click(); await has(en.farewellEnd); await fit();
  await toggle('中文'); await has(zh.farewellEnd); await toggle('EN'); await button(en.another).click(); await page.getByRole('dialog').waitFor();
  await button(en.stay).click(); if (!(await button(`[ ${en.ROAMING_COPY.standUpButton} ]`).count())) await sit();
- await button(en.ROAMING_COPY.leaveButton).click(); await button(en.calm).click(); await has(en.INTRO_COPY.welcome); await fit();
- await button(`[ ${en.INTRO_COPY.startButton} ]`).click(); await button(en.skip).click();
+ await button(en.ROAMING_COPY.leaveButton).click(); await button(en.calm).click(); await button(en.INTRO_COPY.startButton).waitFor(); await fit();
+ await button(en.INTRO_COPY.startButton).click(); await button(en.interlude.ready).click(); await button(en.skip).click();
  await page.getByRole('dialog',{name:en.planetGuide.title}).waitFor(); await button(en.planetGuide.confirm).click();
  await sit(); await stand(); await button(en.ROAMING_COPY.leaveButton).click(); await has(en.farewellEnd);
  assert.deepEqual(errors, [], 'No browser errors');
  const blocked = await browser.newContext({locale:'zh-CN'});
  await blocked.addInitScript(() => { Storage.prototype.getItem = () => { throw new Error('blocked'); }; Storage.prototype.setItem = () => { throw new Error('blocked'); }; });
- const p2 = await blocked.newPage(); await p2.goto(base); await p2.getByText(en.INTRO_COPY.welcome).waitFor();
- await p2.getByRole('button',{name:'中文',exact:true}).click(); await p2.getByText(zh.INTRO_COPY.welcome).waitFor();
+ const p2 = await blocked.newPage(); await p2.goto(base); await p2.getByRole('button',{name:en.INTRO_COPY.startButton,exact:true}).waitFor();
+ await p2.getByRole('button',{name:'中文',exact:true}).click(); await p2.getByRole('button',{name:zh.INTRO_COPY.startButton,exact:true}).waitFor();
  console.log('PASS: translation parity, English default, persistence/storage failures, all screens and panels, questionnaire/input/planet/stage/audio preservation, mobile layout, localized errors and labels.');
  await browser.close();
 })().catch(error => { console.error(error); process.exit(1); });

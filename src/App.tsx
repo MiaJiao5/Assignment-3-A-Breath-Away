@@ -16,8 +16,10 @@ import { BottomPlanetController } from './components/BottomPlanetController';
 import { PlanetGuide } from './components/PlanetGuide';
 import { ExitGuide } from './components/ExitGuide';
 import { PlanetDiscovery } from './components/PlanetDiscovery';
+import { BreathingAuraOrb } from './components/BreathingAuraOrb';
+import { IntroInterlude } from './components/IntroInterlude';
 
-type AppAct = 'intro' | 'quiz' | 'warp' | 'roaming' | 'farewell';
+type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
 interface FloatingStardustItem {
   id: number;
@@ -35,6 +37,7 @@ export default function App() {
   const [act, setAct] = useState<AppAct>('intro');
   const [quizStep, setQuizStep] = useState<number>(0);
   const [quizAnswers, setQuizAnswers] = useState<QuizChoice[]>([]);
+  const [quizGlow, setQuizGlow] = useState<{ id: number; x: number; y: number } | null>(null);
   const [planetId, setPlanetId] = useState<PlanetId>('OMEGA_01');
   const [visitedPlanetIds, setVisitedPlanetIds] = useState<PlanetId[]>([]);
 
@@ -121,7 +124,9 @@ export default function App() {
       }
 
       const id = Date.now() + Math.random();
-      const topPercent = (cursor % 2) * 36;
+      // Three separate sky lanes keep simultaneous, slow-moving thoughts from
+      // touching vertically while their 24-second animations overlap.
+      const topPercent = 4 + (cursor % 3) * 33;
 
       setFloatingStardust((prev) => [...prev.slice(-3), { id, text, builtinIndex, topPercent }]);
     };
@@ -150,7 +155,7 @@ export default function App() {
   useEffect(() => {
     soundEngine.setMuted(false);
     return () => {
-      soundEngine.stopPlanetMusicImmediate();
+      soundEngine.stopAllImmediate();
     };
   }, []);
 
@@ -176,15 +181,21 @@ export default function App() {
   const handleStartRoaming = () => {
     try { soundEngine.unlock(); } catch { setFeedback('audioError'); }
     soundEngine.playSoftClick(40);
+    soundEngine.startPreludeAmbience();
     setQuizAnswers([]);
     setQuizStep(0);
     setVisitedPlanetIds([]);
-    setAct('quiz');
+    setAct('interlude');
   };
+
+  const handleInterludeContinue = useCallback(() => {
+    soundEngine.stopIntroNarration();
+    setAct('quiz');
+  }, []);
 
   // 【第二幕】回答三步心境校准问卷
   const handleSelectOption = (choice: QuizChoice) => {
-    soundEngine.playSoftClick(choice === 'A' ? 0 : choice === 'B' ? 60 : 120);
+    soundEngine.playQuizRipple(choice === 'A' ? 0 : choice === 'B' ? 45 : 90);
     const updated = [...quizAnswers];
     updated[quizStep] = choice;
     setQuizAnswers(updated);
@@ -196,12 +207,14 @@ export default function App() {
       const assigned = calculateAssignedPlanet(updated);
       setPlanetId(assigned);
       setAct('warp');
+      soundEngine.liftPreludeForWarp();
       soundEngine.playWarpTransition();
     }
   };
 
   const handleSkipQuiz = () => {
     setPlanetId(calculateAssignedPlanet(quizAnswers));
+    soundEngine.liftPreludeForWarp();
     soundEngine.playWarpTransition();
     setAct('warp');
   };
@@ -267,7 +280,8 @@ export default function App() {
       }
       setSpiritPose('idle');
       setIsMusicPlaying(false);
-      soundEngine.stopPlanetMusicImmediate();
+      soundEngine.fadeOutPlanetMusic();
+      soundEngine.setPreludeBehindMusic(false);
     } else {
       isRestingRef.current = true;
       setSpiritPose('sitting');
@@ -314,7 +328,7 @@ export default function App() {
       {
         id,
         text: trimmed,
-        topPercent: (quoteCursorRef.current++ % 2) * 36,
+        topPercent: 4 + (quoteCursorRef.current++ % 3) * 33,
       },
     ]);
   };
@@ -362,7 +376,7 @@ export default function App() {
     setCanLeave(false);
     stopMovement();
     soundEngine.playSoftClick(60);
-    soundEngine.stopPlanetMusicImmediate();
+    soundEngine.stopAllImmediate();
     joystickInputRef.current = { x: 0, y: 0 };
     setQuizAnswers([]);
     setQuizStep(0);
@@ -441,12 +455,17 @@ export default function App() {
         }}
       />
 
-      {/* 预留 <audio> 外部音频文件播放标签 */}
+      {/* Optional MP3 target. Configure PLANET_AUDIO_URLS in roamingData.ts. */}
       <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
+      {/* Optional /audio/voice_en.mp3 and /audio/voice_zh.mp3 are configured in
+          audio/introVoice.ts. No src is set while recordings are unavailable. */}
+      <audio id="intro-voice-en" preload="none" className="hidden" />
+      <audio id="intro-voice-zh" preload="none" className="hidden" />
 
       {/* 核心手机竖屏比例容器 (max-width: 414px; height: 100vh; max-height: 860px; border-radius: 28px) */}
       <main
         className="roaming-mobile-frame flex flex-col justify-between select-none"
+        data-act={act}
         style={{
           background: currentColors.canvasBg,
           color: currentColors.textPrimary,
@@ -515,6 +534,10 @@ export default function App() {
 
         {/* ================= 3. 顶部轻量状态栏与常驻告别按钮 ================= */}
         <LanguageToggle />
+        {act === 'quiz' && quizGlow && (
+          <div key={quizGlow.id} className="quiz-selection-glow" aria-hidden="true"
+            style={{ left: quizGlow.x, top: quizGlow.y }} onAnimationEnd={() => setQuizGlow(null)} />
+        )}
         {act === 'roaming' && canLeave && (
           <button type="button" onClick={handleLeaveToFarewell} className="leave-control">
             {ROAMING_COPY.leaveButton}
@@ -526,7 +549,7 @@ export default function App() {
               className="text-xs font-medium tracking-widest opacity-85"
               style={{ color: currentColors.textSecondary }}
             >
-              {act === 'roaming' ? activePlanet.fullName : copy.title}
+              {act === 'roaming' ? activePlanet.fullName : null}
             </span>
           </div>
 
@@ -534,93 +557,84 @@ export default function App() {
 
         {/* ================= 第一幕：开场引导页 ================= */}
         {act === 'intro' && (
-          <section className="relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10">
-            <div className="text-center mt-4">
-              <p className="text-xs tracking-[0.25em] opacity-65 mb-2">{copy.title}</p>
-              <h1 className="font-serif-soft text-2xl font-semibold tracking-wider">
-                {copy.title}
+          <section className="intro-scene relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10">
+            <div className="intro-title-slot text-center mt-4">
+              <h1 className="intro-title" data-script={copy.title.split(' ').length === 3} aria-label={copy.title}>
+                {copy.title.split(' ').length === 3
+                  ? copy.title.split(' ').map((word, index) => (
+                    <React.Fragment key={word}>
+                      <span className={`intro-title-line intro-title-line-${index + 1}`} aria-hidden="true">{word}</span>
+                      {index < 2 ? ' ' : null}
+                    </React.Fragment>
+                  ))
+                  : <span className="intro-title-localized" aria-hidden="true">{copy.title}</span>}
               </h1>
             </div>
 
             <div className="my-auto flex flex-col items-center">
-              <FluffySpirit
-                pose="idle"
-                size="large"
-                onTapSpirit={() => soundEngine.playSpiritChime()}
-              />
-
-              <div className="airbrush-soft-card mt-8 px-6 py-6 rounded-[32px] max-w-[330px] text-center">
-                <p className="text-[15px] leading-relaxed font-normal tracking-wide text-slate-700">
-                  {INTRO_COPY.welcome}
-                </p>
-                <p className="mt-3 text-xs text-slate-600">
-                  {copy.support}
-                </p>
-              </div>
+              <BreathingAuraOrb />
             </div>
 
             <div className="w-full flex flex-col items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={handleStartRoaming}
-                className="airbrush-pill-btn w-full max-w-[310px] py-4 px-6 rounded-full text-[15px] font-medium tracking-wider text-slate-800 cursor-pointer whitespace-nowrap"
+                className="escape-cloud-button w-full max-w-[310px] py-4 px-6 text-[15px] font-medium tracking-wide cursor-pointer"
               >
-                [ {INTRO_COPY.startButton} ]
+                {INTRO_COPY.startButton}
               </button>
             </div>
           </section>
         )}
 
+        {act === 'interlude' && <IntroInterlude onContinue={handleInterludeContinue} />}
+
         {/* ================= 第二幕：三步心境校准（分支评估问卷） ================= */}
         {act === 'quiz' && (
-          <section className="relative z-20 flex-1 flex flex-col items-center justify-between px-6 pt-4 pb-10">
-            <div role="status" className="text-xs text-center">{copy.progress.replace('{n}', String(quizStep + 1))}</div>
-            <div className="flex items-center gap-3 mt-2">
+          <section className="quiz-scene relative z-20 flex-1 flex flex-col items-center justify-between px-6 pt-4 pb-10">
+            <div role="status" aria-label={copy.progress.replace('{n}', String(quizStep + 1))} className="quiz-progress flex items-center gap-3 mt-2">
               {QUIZ_QUESTIONS.map((q, idx) => (
                 <div
                   key={q.id}
-                  className="h-2 rounded-full transition-all duration-500"
+                  className="rounded-full transition-all duration-500"
                   style={{
-                    width: idx === quizStep ? 28 : 8,
+                    width: 5,
+                    height: 5,
                     background:
                       idx <= quizStep
-                        ? 'rgba(255, 255, 255, 0.92)'
-                        : 'rgba(255, 255, 255, 0.38)',
+                        ? 'rgba(133, 104, 164, 0.8)'
+                        : 'rgba(133, 104, 164, 0.22)',
                     boxShadow:
-                      idx === quizStep ? '0 0 12px rgba(255, 255, 255, 0.9)' : 'none',
+                      idx === quizStep ? '0 0 10px rgba(179, 141, 209, 0.55)' : 'none',
                   }}
                 />
               ))}
-            </div>
-
-            <div className="mt-2">
-              <FluffySpirit
-                pose="idle"
-                onTapSpirit={() => soundEngine.playSpiritChime()}
-              />
             </div>
 
             <div
               key={QUIZ_QUESTIONS[quizStep].id}
               className="w-full max-w-[348px] my-auto flex flex-col gap-5 transition-all duration-500"
             >
-              <div className="airbrush-soft-card px-6 py-5 rounded-[28px] text-center">
-                <h2 className="font-serif-soft text-[17px] leading-relaxed font-medium text-slate-800">
+              <div className="quiz-question px-1 py-2 text-center">
+                <h2 className="font-serif-soft text-[23px] leading-snug font-medium">
                   {QUIZ_QUESTIONS[quizStep].question}
                 </h2>
               </div>
 
-              <div className="flex flex-col gap-3.5">
+              <div className="quiz-options flex flex-col gap-5">
                 {QUIZ_QUESTIONS[quizStep].options.map((option) => (
                   <button
                     key={option.value}
                     type="button"
-                    onClick={() => handleSelectOption(option.value)}
+                    onClick={event => {
+                      const frame = event.currentTarget.closest('main')!.getBoundingClientRect();
+                      const optionBox = event.currentTarget.getBoundingClientRect();
+                      setQuizGlow({ id: Date.now(), x: optionBox.x + optionBox.width / 2 - frame.x, y: optionBox.y + optionBox.height / 2 - frame.y });
+                      handleSelectOption(option.value);
+                    }}
                     aria-pressed={quizAnswers[quizStep] === option.value}
-                    style={quizAnswers[quizStep] === option.value ? { outline: '2px solid #78649b' } : undefined}
-                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[15px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
+                    className="airbrush-tape-option w-full py-4 px-5 rounded-2xl text-left text-[14px] font-medium text-slate-700 flex items-center gap-3 cursor-pointer"
                   >
-                    <span className="text-[24px] leading-none font-semibold shrink-0 w-5">{option.value}</span>
                     <span className="text-[25px] leading-none shrink-0" aria-hidden="true">{option.emoji}</span>
                     <span className="min-w-0 flex-1">{option.label}</span>
                   </button>
@@ -631,7 +645,7 @@ export default function App() {
             <div className="flex flex-wrap justify-center gap-4 text-xs my-3">
               <button type="button" onClick={() => {
                 if (quizStep > 0) setQuizStep(quizStep - 1);
-                else setAct('intro');
+                else setAct('interlude');
               }}>
                 {copy.back}
               </button>
@@ -639,9 +653,6 @@ export default function App() {
                 {copy.skip}
               </button>
             </div>
-            <p className="text-xs opacity-60 tracking-wider">
-              {copy.quizHint}
-            </p>
           </section>
         )}
 
@@ -649,10 +660,10 @@ export default function App() {
         {act === 'warp' && (
           <section className="relative z-20 flex-1 flex flex-col items-center justify-center px-8 text-center">
             <div className="mb-6">
-              <FluffySpirit pose="walking" facing={spiritFacing} size="large" />
+              <BreathingAuraOrb compact traveling />
             </div>
-            <div className="airbrush-soft-card px-7 py-6 rounded-[32px] max-w-[330px]">
-              <p className="text-[15px] leading-relaxed font-medium text-slate-800 tracking-wide">
+            <div className="px-7 py-6 max-w-[330px]">
+              <p className="text-[15px] leading-relaxed font-medium tracking-wide">
                 {copy.gathering}<br />{copy.tuning}<br />{activePlanet.fullName}
               </p>
             </div>
@@ -683,7 +694,7 @@ export default function App() {
                 {floatingStardust.map((item) => (
                   <div
                     key={item.id}
-                    className="animate-stardust-float absolute left-0 mt-2 max-w-[280px] px-4 py-1.5 rounded-full"
+                    className="animate-stardust-float absolute left-0 max-w-[260px] px-4 py-1.5 rounded-full"
                     onAnimationEnd={() => setFloatingStardust(prev => prev.filter(quote => quote.id !== item.id))}
                     style={
                       {
@@ -813,7 +824,7 @@ export default function App() {
               >
                 {copy.calm}
               </button>
-              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
+              <button type="button" className="airbrush-pill-btn rounded-full px-4 py-3 text-sm" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}>{copy.another}</button>
             </div>
           </section>
         )}

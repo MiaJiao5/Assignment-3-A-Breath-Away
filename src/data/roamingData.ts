@@ -2,6 +2,34 @@ export type QuizChoice = 'A' | 'B' | 'C';
 
 export type PlanetId = 'OMEGA_01' | 'DELTA_02' | 'SIGMA_03' | 'PSI_04';
 
+export type BiomePropType = 'mapleTree' | 'goldenWheat' | 'berryBush'
+  | 'cloudTree' | 'grassTuft' | 'mintMushroom'
+  | 'softCloud' | 'dandelion' | 'pinwheel'
+  | 'jellyfishMushroom' | 'crystalCluster' | 'moonReed';
+export interface BiomePalette { primary: string; secondary: string; accent: string; soft: string }
+export interface BiomePropConfig {
+  type: BiomePropType;
+  /** Clockwise degrees from the top of the local globe; independent of language. */
+  angle: number;
+  latitude: number;
+  scale: number;
+  colors: BiomePalette;
+}
+export interface SurfaceLocation { angle: number; latitude: number }
+export interface PlanetBiome {
+  id: 'autumn' | 'forest' | 'sky' | 'starsea';
+  palette: BiomePalette;
+  reaction: 'mapleLeaves' | 'morningDew' | 'cloudFluff' | 'starBubbles';
+}
+export function surfaceCoordinates(location: SurfaceLocation) {
+  return { lon: location.angle * Math.PI / 180, lat: location.latitude * Math.PI / 180 };
+}
+
+const AUTUMN: BiomePalette = { primary: '#FF6B6B', secondary: '#FFA057', accent: '#FFD166', soft: '#FFE5C0' };
+const FOREST: BiomePalette = { primary: '#4ECDC4', secondary: '#56C596', accent: '#F9F871', soft: '#A8E6CF' };
+const SKY: BiomePalette = { primary: '#89CFF0', secondary: '#C3B1E1', accent: '#FFB7B2', soft: '#FFFFFF' };
+const STARSEA: BiomePalette = { primary: '#9B72CF', secondary: '#FF70A6', accent: '#70D6FF', soft: '#FFE66D' };
+
 export interface QuizQuestion {
   id: number;
   question: string;
@@ -22,6 +50,9 @@ export interface PlanetConfig {
    */
   externalAudioUrl: string;
   isDarkTheme: boolean;
+  biome: PlanetBiome;
+  props: BiomePropConfig[];
+  landmarks: { stone: SurfaceLocation; portal: SurfaceLocation };
   colors: {
     canvasBg: string;
     outerDesktopBg: string;
@@ -39,85 +70,139 @@ export interface PlanetConfig {
   };
 }
 
+/**
+ * OPTIONAL MP3 REPLACEMENT POINT
+ *
+ * Put generated tracks in `public/audio/` and replace any empty string below,
+ * for example: OMEGA_01: '/audio/omega-01-amber-sun.mp3'. The shared hidden
+ * <audio id="brief-roaming-external-audio"> element in App.tsx will then take
+ * priority over the procedural Web Audio melody for that planet.
+ */
+export const PLANET_AUDIO_URLS: Partial<Record<PlanetId, string>> = {
+  OMEGA_01: '/audio/omega-01-copper-afternoon.mp3',
+  DELTA_02: '/audio/delta-02-sunlight-on-the-moss.mp3',
+  SIGMA_03: '/audio/sigma-03-midday-horizon.mp3',
+  PSI_04: '/audio/psi-04-last-active-sensor.mp3',
+};
+
 export const PLANETS: Record<PlanetId, PlanetConfig> = {
   OMEGA_01: {
     id: 'OMEGA_01',
     code: 'Ω-01',
-    externalAudioUrl: '', // 可填入外部音频路径，如 '/audio/omega-01-amber-sun.mp3'
+    externalAudioUrl: PLANET_AUDIO_URLS.OMEGA_01 ?? '',
     isDarkTheme: false,
+    biome: { id: 'autumn', palette: AUTUMN, reaction: 'mapleLeaves' },
+    props: [
+      { type: 'mapleTree', angle: 25, latitude: -18, scale: 1.05, colors: AUTUMN },
+      { type: 'goldenWheat', angle: 80, latitude: 15, scale: .85, colors: AUTUMN },
+      { type: 'berryBush', angle: 145, latitude: 18, scale: .9, colors: AUTUMN },
+      { type: 'mapleTree', angle: 210, latitude: -12, scale: .95, colors: AUTUMN },
+      { type: 'goldenWheat', angle: 275, latitude: 10, scale: 1, colors: AUTUMN },
+      { type: 'berryBush', angle: 330, latitude: -15, scale: .8, colors: AUTUMN },
+    ],
+    landmarks: { stone: { angle: 55, latitude: 4 }, portal: { angle: 180, latitude: -4 } },
     colors: {
-      canvasBg: 'linear-gradient(165deg, #FFFDF7 0%, #FFF3DB 48%, #FFE4D6 100%)',
-      outerDesktopBg: 'radial-gradient(circle at 50% 50%, #FDE68A 0%, #FDBA74 45%, #E29578 100%)',
-      blob1: '#FDE68A', // 金黄麦浪色
-      blob2: '#FDBA74', // 暖阳橘
-      blob3: '#FBCFE8', // 蜜桃粉
-      blob4: '#FFFBEB', // 柔和奶白
-      planetCore: '#FFFBEB',
-      planetMid: '#FDE68A',
-      planetEdge: '#FDBA74',
+      canvasBg: 'linear-gradient(155deg, #C77065 0%, #D88A54 46%, #A85479 100%)',
+      outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #D3916E, #70445D 85%)',
+      blob1: '#EBC252',
+      blob2: '#EF8953',
+      blob3: '#D9588D',
+      blob4: '#EEC286',
+      planetCore: '#F7DCBC',
+      planetMid: '#E8B18E',
+      planetEdge: '#CB7B98',
       planetGlow: 'rgba(253, 186, 116, 0.65)',
-      textPrimary: '#5C3D2E',
-      textSecondary: '#8C624C',
+      textPrimary: '#FFF6EA',
+      textSecondary: '#FFF0DA',
       accentSoft: 'rgba(254, 215, 170, 0.72)',
     },
   },
   DELTA_02: {
     id: 'DELTA_02',
     code: 'Δ-02',
-    externalAudioUrl: '', // 可填入外部音频路径，如 '/audio/delta-02-mint-breeze.mp3'
+    externalAudioUrl: PLANET_AUDIO_URLS.DELTA_02 ?? '',
     isDarkTheme: false,
+    biome: { id: 'forest', palette: FOREST, reaction: 'morningDew' },
+    props: [
+      { type: 'grassTuft', angle: 15, latitude: 18, scale: .85, colors: FOREST },
+      { type: 'cloudTree', angle: 65, latitude: -14, scale: 1.05, colors: FOREST },
+      { type: 'mintMushroom', angle: 125, latitude: 12, scale: .9, colors: FOREST },
+      { type: 'grassTuft', angle: 190, latitude: -17, scale: 1, colors: FOREST },
+      { type: 'cloudTree', angle: 245, latitude: 10, scale: .95, colors: FOREST },
+      { type: 'mintMushroom', angle: 305, latitude: -12, scale: .8, colors: FOREST },
+    ],
+    landmarks: { stone: { angle: 95, latitude: 4 }, portal: { angle: 220, latitude: -4 } },
     colors: {
-      canvasBg: 'linear-gradient(165deg, #F4FDF8 0%, #E2FAEE 50%, #ECFCCB 100%)',
-      outerDesktopBg: 'radial-gradient(circle at 50% 50%, #A7F3D0 0%, #6EE7B7 45%, #34D399 100%)',
-      blob1: '#A7F3D0', // 薄荷青绿
-      blob2: '#BBF7D0', // 嫩草绿
-      blob3: '#FEF08A', // 柠檬微黄
-      blob4: '#F0FDF4', // 晨雾白
-      planetCore: '#F0FDF4',
-      planetMid: '#A7F3D0',
-      planetEdge: '#6EE7B7',
+      canvasBg: 'linear-gradient(155deg, #205D56 0%, #348578 48%, #3D6B73 100%)',
+      outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #518A77, #203E47 85%)',
+      blob1: '#25AF88',
+      blob2: '#73C8B5',
+      blob3: '#E1C864',
+      blob4: '#326A74',
+      planetCore: '#D0EBD6',
+      planetMid: '#8DC5AC',
+      planetEdge: '#699DAB',
       planetGlow: 'rgba(110, 231, 183, 0.62)',
-      textPrimary: '#234E43',
-      textSecondary: '#487A6B',
+      textPrimary: '#EFFAE9',
+      textSecondary: '#DAF1E3',
       accentSoft: 'rgba(167, 243, 208, 0.72)',
     },
   },
   SIGMA_03: {
     id: 'SIGMA_03',
     code: 'Σ-03',
-    externalAudioUrl: '', // 可填入外部音频路径，如 '/audio/sigma-03-zero-sky.mp3'
+    externalAudioUrl: PLANET_AUDIO_URLS.SIGMA_03 ?? '',
     isDarkTheme: false,
+    biome: { id: 'sky', palette: SKY, reaction: 'cloudFluff' },
+    props: [
+      { type: 'softCloud', angle: 40, latitude: -16, scale: .95, colors: SKY },
+      { type: 'dandelion', angle: 115, latitude: 17, scale: .9, colors: SKY },
+      { type: 'pinwheel', angle: 175, latitude: -15, scale: .85, colors: SKY },
+      { type: 'softCloud', angle: 250, latitude: 12, scale: 1.1, colors: SKY },
+      { type: 'dandelion', angle: 315, latitude: -10, scale: .85, colors: SKY },
+    ],
+    landmarks: { stone: { angle: 75, latitude: 4 }, portal: { angle: 145, latitude: -4 } },
     colors: {
-      canvasBg: 'linear-gradient(165deg, #F8FAFC 0%, #E0F2FE 50%, #EDE9FE 100%)',
-      outerDesktopBg: 'radial-gradient(circle at 50% 50%, #BAE6FD 0%, #C4B5FD 50%, #93C5FD 100%)',
-      blob1: '#BAE6FD', // 纯净晴空蓝
-      blob2: '#E0F2FE', // 粉蓝云朵
-      blob3: '#DDD6FE', // 浅薰衣草紫
-      blob4: '#F8FAFC', // 柔白光晕
-      planetCore: '#F8FAFC',
-      planetMid: '#BAE6FD',
-      planetEdge: '#C4B5FD',
+      canvasBg: 'linear-gradient(155deg, #294CAB 0%, #4662C4 45%, #6654A9 100%)',
+      outerDesktopBg: 'radial-gradient(ellipse at 50% 45%, #5971B9, #27355E 85%)',
+      blob1: '#2458CB',
+      blob2: '#9E7BCA',
+      blob3: '#E9A3A3',
+      blob4: '#567DDD',
+      planetCore: '#D3DDF0',
+      planetMid: '#9EBAE2',
+      planetEdge: '#BC93C4',
       planetGlow: 'rgba(186, 230, 253, 0.68)',
-      textPrimary: '#313E5B',
-      textSecondary: '#5B6B8C',
+      textPrimary: '#F8F5FF',
+      textSecondary: '#E7E8FF',
       accentSoft: 'rgba(221, 214, 254, 0.72)',
     },
   },
   PSI_04: {
     id: 'PSI_04',
     code: 'Ψ-04',
-    externalAudioUrl: '', // 可填入外部音频路径，如 '/audio/psi-04-star-sea.mp3'
+    externalAudioUrl: PLANET_AUDIO_URLS.PSI_04 ?? '',
     isDarkTheme: true,
+    biome: { id: 'starsea', palette: STARSEA, reaction: 'starBubbles' },
+    props: [
+      { type: 'jellyfishMushroom', angle: 10, latitude: -18, scale: 1, colors: STARSEA },
+      { type: 'crystalCluster', angle: 70, latitude: 14, scale: .9, colors: STARSEA },
+      { type: 'moonReed', angle: 135, latitude: -12, scale: .95, colors: STARSEA },
+      { type: 'jellyfishMushroom', angle: 200, latitude: 17, scale: .9, colors: STARSEA },
+      { type: 'crystalCluster', angle: 265, latitude: -14, scale: 1, colors: STARSEA },
+      { type: 'moonReed', angle: 325, latitude: 12, scale: .85, colors: STARSEA },
+    ],
+    landmarks: { stone: { angle: 105, latitude: 4 }, portal: { angle: 295, latitude: -4 } },
     colors: {
-      canvasBg: 'linear-gradient(165deg, #281B4E 0%, #372963 48%, #4A2759 100%)',
+      canvasBg: 'linear-gradient(155deg, #211B50 0%, #33246A 48%, #612D68 100%)',
       outerDesktopBg: 'radial-gradient(circle at 50% 50%, #312E81 0%, #4C1D95 50%, #1E1B4B 100%)',
-      blob1: '#818CF8', // 梦幻钴蓝
-      blob2: '#F472B6', // 暮光玫粉
-      blob3: '#FDE047', // 星尘暖黄
+      blob1: '#535EB0', // 梦幻钴蓝
+      blob2: '#C54D9B', // 暮光玫粉
+      blob3: '#E9B64F', // 星尘暖黄
       blob4: '#5B21B6', // 深海柔和紫
-      planetCore: '#F5D0FE',
-      planetMid: '#818CF8',
-      planetEdge: '#F472B6',
+      planetCore: '#CDBBDD',
+      planetMid: '#9991C4',
+      planetEdge: '#B36E9F',
       planetGlow: 'rgba(244, 114, 182, 0.55)',
       textPrimary: '#FDF4FF',
       textSecondary: '#E9D5FF',

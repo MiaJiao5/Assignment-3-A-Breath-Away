@@ -36,4 +36,6 @@ The project owner also supplied the headphone-page recordings: `voice_en_kokoro.
 
 The owner-supplied `Begining music.mp3` is copied unchanged to `public/audio/beginning-music.mp3`. It fades in after the headphone-page confirmation at 70% media volume, accompanies the questionnaire, and fades out during the transition into the first planet.
 
+The owner also supplied `foot sound.mp3`, copied unchanged to `public/audio/footsteps.mp3`. It loops at media volume 0.8 during controlled walking on all four planets and stops when movement ends. It replaces the earlier procedurally synthesized footsteps.
+
 The farewell companion is an original code-based SVG illustration with one continuous ivory cloud silhouette, independent waving and blinking groups, and subtle dimensional shading. It uses the current planet's existing background without altering the theme mapping.

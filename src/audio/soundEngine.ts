@@ -122,8 +122,10 @@ class SoundEngine {
   private beginningSession = 0;
   private beginningStop: (() => void) | null = null;
   private beginningGain: GainNode | null = null;
-  private footstepNoise: AudioBuffer | null = null;
-  private lastFootstepAt = -Infinity;
+  private footstepAudioEl: HTMLAudioElement | null = null;
+  private footstepPlaying = false;
+  private footstepSession = 0;
+  private footstepFailed = false;
 
   private loopTimer: number | null = null;
   private arpeggioTimer: number | null = null;
@@ -475,49 +477,46 @@ class SoundEngine {
     }
   }
 
-  /** A quiet plush footfall: a rounded low tap with a little filtered rustle. */
-  public playFootstep(planetId: PlanetId, strength = 1): void {
-    if (this.isMuted || document.hidden) return;
+  /** The owner's recording loops only for active, accepted walking movement. */
+  public setFootstepsMoving(moving: boolean): void {
+    if (!moving || this.isMuted || document.hidden) {
+      this.stopFootsteps();
+      return;
+    }
+    if (this.footstepPlaying || this.footstepFailed) return;
     try {
-      const ctx = this.ensureContext();
-      if (!this.masterGain || ctx.state !== 'running') return;
-      const now = ctx.currentTime;
-      if (now - this.lastFootstepAt < .16) return;
-      this.lastFootstepAt = now;
-      const weight = Math.max(.35, Math.min(1, strength));
-      const pitch = { OMEGA_01: 145, DELTA_02: 160, SIGMA_03: 180, PSI_04: 135 }[planetId];
-      const frequency = pitch * (.97 + Math.random() * .06);
-      const tap = ctx.createOscillator();
-      const tapGain = ctx.createGain();
-      tap.type = 'sine';
-      tap.frequency.setValueAtTime(frequency, now);
-      tap.frequency.exponentialRampToValueAtTime(frequency * .62, now + .11);
-      tapGain.gain.setValueAtTime(.0001, now);
-      tapGain.gain.linearRampToValueAtTime(.035 * weight, now + .008);
-      tapGain.gain.exponentialRampToValueAtTime(.0001, now + .13);
-      tap.connect(tapGain); tapGain.connect(this.masterGain);
-      tap.onended = () => { tap.disconnect(); tapGain.disconnect(); };
-      tap.start(now); tap.stop(now + .14);
-
-      if (!this.footstepNoise) {
-        this.footstepNoise = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * .16), ctx.sampleRate);
-        const samples = this.footstepNoise.getChannelData(0);
-        for (let i = 0; i < samples.length; i++) samples[i] = (Math.random() * 2 - 1) * .55;
-      }
-      const rustle = ctx.createBufferSource();
-      const filter = ctx.createBiquadFilter();
-      const rustleGain = ctx.createGain();
-      rustle.buffer = this.footstepNoise;
-      rustle.playbackRate.value = .94 + Math.random() * .12;
-      filter.type = 'lowpass'; filter.frequency.value = 1050; filter.Q.value = .45;
-      rustleGain.gain.setValueAtTime(.0001, now);
-      rustleGain.gain.linearRampToValueAtTime(.016 * weight, now + .012);
-      rustleGain.gain.exponentialRampToValueAtTime(.0001, now + .095);
-      rustle.connect(filter); filter.connect(rustleGain); rustleGain.connect(this.masterGain);
-      rustle.onended = () => { rustle.disconnect(); filter.disconnect(); rustleGain.disconnect(); };
-      rustle.start(now); rustle.stop(now + .11);
+      const audio = document.getElementById('walking-footsteps') as HTMLAudioElement | null;
+      if (!audio) return;
+      this.ensureContext();
+      if (!this.masterGain) return;
+      const session = ++this.footstepSession;
+      this.footstepAudioEl = audio;
+      this.footstepPlaying = true;
+      audio.loop = true;
+      audio.volume = .8;
+      audio.currentTime = 0;
+      this.mediaSource(audio).connect(this.masterGain);
+      audio.play().catch(() => {
+        if (session !== this.footstepSession) return;
+        this.footstepFailed = true;
+        this.stopFootsteps();
+      });
     } catch {
-      // Footsteps are decorative; unavailable audio must never block movement.
+      this.footstepFailed = true;
+      this.stopFootsteps();
+    }
+  }
+
+  public stopFootsteps(): void {
+    if (!this.footstepPlaying && !this.footstepAudioEl) return;
+    this.footstepSession++;
+    this.footstepPlaying = false;
+    const audio = this.footstepAudioEl;
+    this.footstepAudioEl = null;
+    if (audio) {
+      audio.pause();
+      try { audio.currentTime = 0; } catch { /* Metadata may still be loading. */ }
+      this.mediaSources.get(audio)?.disconnect();
     }
   }
 
@@ -878,6 +877,7 @@ class SoundEngine {
    * 点击右上角 [ 👋 先去忙啦 ] 时，音乐音量在 1.4 秒内平滑淡出
    */
   public fadeOutAndStop(durationSec = 1.4): void {
+    this.stopFootsteps();
     this.fadeOutPlanetMusic(durationSec);
     this.stopPreludeAmbience(durationSec);
     this.stopIntroNarration();
@@ -928,6 +928,7 @@ class SoundEngine {
   }
 
   public stopAllImmediate(): void {
+    this.stopFootsteps();
     this.stopBeginningMusic(0);
     this.stopIntroNarration();
     this.stopPlanetMusicImmediate();

@@ -19,6 +19,7 @@ import { PlanetDiscovery } from './components/PlanetDiscovery';
 import { BreathingAuraOrb } from './components/BreathingAuraOrb';
 import { IntroInterlude } from './components/IntroInterlude';
 import { BilingualText } from './i18n/BilingualText';
+import { PlanetAtmosphere } from './components/PlanetAtmosphere';
 
 type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
@@ -248,6 +249,7 @@ export default function App() {
   // 底部控制器漫步状态同步
   const handleWalkStateChange = useCallback(
     (isWalking: boolean, facing?: 'left' | 'right') => {
+      if (!isWalking) soundEngine.stopFootsteps();
       if (isRestingRef.current || isGuideOpenRef.current) return;
       if (facing) {
         setSpiritFacing(facing);
@@ -262,6 +264,7 @@ export default function App() {
 
   // Rest exactly where the visitor stopped, cancelling all queued movement.
   const stopMovement = () => {
+    soundEngine.stopFootsteps();
     joystickInputRef.current = { x: 0, y: 0 };
     targetCoordsRef.current = { ...planetCoordsRef.current };
     springVelocityRef.current = { lon: 0, lat: 0 };
@@ -423,6 +426,11 @@ export default function App() {
         textPrimary: '#4A3B52',
         textSecondary: '#7A6885',
         accentSoft: 'rgba(251, 207, 232, 0.65)',
+        ...(act === 'intro' ? {
+          canvasBg: 'linear-gradient(165deg, #FFFEFC 0%, #FFF7FB 46%, #EFEDFF 100%)',
+          outerDesktopBg: 'radial-gradient(ellipse at 50% 48%, #DED6EF 0%, #C8C2D8 58%, #D2C8C5 100%)',
+          blob1: '#F8DEEF', blob2: '#FFF0CB', blob3: '#E8DDFB', blob4: '#DFEEFF',
+        } : {}),
       };
 
   // WebGL 激活时避免使用 backdrop-filter，保证软件/硬件渲染 60fps 丝滑
@@ -452,6 +460,7 @@ export default function App() {
       {/* Optional MP3 target. Configure PLANET_AUDIO_URLS in roamingData.ts. */}
       <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
       <audio id="beginning-music" src="/audio/beginning-music.mp3" preload="auto" className="hidden" />
+      <audio id="walking-footsteps" src="/audio/footsteps.mp3" preload="auto" className="hidden" />
       {/* Optional /audio/voice_en.mp3 and /audio/voice_zh.mp3 are configured in
           audio/introVoice.ts. No src is set while recordings are unavailable. */}
       <audio id="intro-voice-en" preload="none" className="hidden" />
@@ -665,6 +674,7 @@ export default function App() {
         {/* ================= 第三幕 & 第四幕：3D 星球漫步、手势滑动、底部控制器、坐下听歌与星尘树洞 ================= */}
         {act === 'roaming' && (
           <section inert={isHelpOpen || isPortalModalOpen} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
+            <PlanetAtmosphere planetId={planetId} resting={spiritPose === 'sitting'} />
             {/* Planet interaction instructions */}
             <div className="px-5 pt-0.5 text-center z-20">
               <p

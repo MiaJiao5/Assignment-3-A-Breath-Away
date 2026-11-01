@@ -2,9 +2,11 @@
 
 A small, dreamy escape: answer three gentle questions, wander around a planet with a fluffy companion, rest by the Listening Stone, and let a thought float into the stars.
 
+The 3D spirit uses a gently organic silhouette, matte velvet sheen and a fine procedural bump texture. A feathered glow, pastel rim lighting and a contact shadow replace the former hard outline. Sitting adds a 5.6-second breath and a small listening lean. Layered CSS mist, floating dust and slow twinkles deepen the planet atmosphere; Zero-Gravity Sky also has two infrequent meteor streaks. Decorative motion respects reduced-motion preferences, and texture resources are released on exit.
+
 Each planet's portal unlocks only after sitting at its Listening Stone and standing up again. Approaching a portal before that shows no travel action. This unlock resets on every planet transfer, independently of the globally available Leave button. A softly glowing golden trail leads to the stone first, then to the portal after resting.
 
-Quiet, synthesized footsteps follow the companion's actual walking and visible landing rhythm. A soft low tap and filtered rustle vary slightly with each planet. Stopping, sitting, opening instructions, or pressing against an obstacle without moving produces no new footsteps; language switching preserves the walking rhythm. No additional audio download is needed.
+The owner-supplied `footsteps.mp3` loops on every planet while control input produces actual walking, at media volume 0.8. Releasing the controls, sitting, opening instructions, hiding the page, or pressing against an obstacle without moving stops the loop. Language switching preserves continuous playback. The recording replaces the earlier synthesized footfalls and uses the existing shared audio context.
 
 ## Run locally
 
@@ -89,6 +91,7 @@ node tests/planet-polish.cjs
 node tests/bilingual-layout.cjs
 node tests/planet-framing.cjs
 node tests/sky-farewell.cjs
+node tests/spirit-atmosphere.cjs
 ```
 
 The tests use an installed Google Chrome in headless mode. Set `BROWSER_PATH` to another Chromium browser executable if needed, `APP_URL` for a different server URL, or `PLAYWRIGHT_MODULE` for an existing Playwright module directory. The suites check both languages across every screen and panel, preference persistence and storage failures, input and questionnaire preservation, planet and character state, uninterrupted audio timers, localized feedback and accessible labels, and controls at mobile widths from 320 to 414 pixels. The movement/resting regression checks counter-rotation in all four directions, surface and shadow alignment, the joystick-only panel, initial glowing guidance, tapping the Listening Stone, the camera behind the seated companion, rest locking, and restoring movement. Screenshots are saved under tests/; generated images are ignored by Git.

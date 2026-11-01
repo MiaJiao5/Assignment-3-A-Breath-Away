@@ -143,6 +143,32 @@ function createSoftShadowTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+/** A feathered halo, with no solid edge or expanded silhouette mesh. */
+function createSpiritGlowTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 128;
+  const ctx = canvas.getContext('2d')!;
+  const glow = ctx.createRadialGradient(64, 64, 0, 64, 64, 62);
+  glow.addColorStop(0, 'rgba(255,255,255,.65)');
+  glow.addColorStop(.5, 'rgba(255,255,255,.22)');
+  glow.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(canvas);
+}
+
+function createPlushBodyGeometry(): THREE.SphereGeometry {
+  const geometry = new THREE.SphereGeometry(.24, 40, 32);
+  const positions = geometry.attributes.position;
+  for (let i = 0; i < positions.count; i++) {
+    const x = positions.getX(i), y = positions.getY(i), z = positions.getZ(i);
+    const softness = 1 + .022 * Math.sin(x * 23 + y * 11) * Math.cos(z * 21 - y * 9)
+      + .012 * Math.cos(y * 25 + z * 12);
+    positions.setXYZ(i, x * softness, y * softness, z * softness);
+  }
+  geometry.computeVertexNormals();
+  return geometry;
+}
+
 /**
  * 将球面经纬度 (lon, lat) 安置到半径为 R 的球体表面，并使局部 +Y 朝向球面法线方向
  */
@@ -689,29 +715,53 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     spiritBodyPivot.name = 'spirit-body';
     spiritRoot.add(spiritBodyPivot);
 
-    const fluffyWhiteMat = new THREE.MeshStandardMaterial({
-      color: 0xffffff,
-      roughness: 0.9,
-      metalness: 0.02,
+    const plushRelief = createSurfaceRelief();
+    plushRelief.wrapT = THREE.RepeatWrapping;
+    plushRelief.repeat.set(9, 6);
+    const fluffyWhiteMat = new THREE.MeshPhysicalMaterial({
+      color: 0xfffdf9,
+      roughness: 0.97,
+      metalness: 0,
+      sheen: .8,
+      sheenRoughness: .88,
+      sheenColor: 0xfff1f4,
+      bumpMap: plushRelief,
+      bumpScale: .0015,
       emissive: 0xfff5f7,
-      emissiveIntensity: 0.08,
-      envMapIntensity: .4,
+      emissiveIntensity: 0.025,
+      envMapIntensity: .32,
     });
 
-    const bodyMesh = new THREE.Mesh(new THREE.SphereGeometry(0.24, 32, 32), fluffyWhiteMat);
+    const bodyMesh = new THREE.Mesh(createPlushBodyGeometry(), fluffyWhiteMat);
+    bodyMesh.name = 'spirit-torso';
     bodyMesh.scale.set(1.06, 0.96, 1.02);
     bodyMesh.position.y = 0.25;
     bodyMesh.castShadow = true;
     bodyMesh.receiveShadow = true;
     spiritBodyPivot.add(bodyMesh);
 
-    // A cool rim separates the white plush silhouette from pale ground.
-    const bodyOutline = new THREE.Mesh(bodyMesh.geometry, new THREE.MeshBasicMaterial({ color: 0x9a8ab2, side: THREE.BackSide }));
-    bodyOutline.position.copy(bodyMesh.position);
-    bodyOutline.scale.copy(bodyMesh.scale).multiplyScalar(1.035);
-    spiritBodyPivot.add(bodyOutline);
+    const spiritGlowTexture = createSpiritGlowTexture();
+    const spiritGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: spiritGlowTexture, color: 0xf3ebff, opacity: .2,
+      depthWrite: false, depthTest: true,
+    }));
+    spiritGlow.name = 'spirit-soft-glow';
+    spiritGlow.position.copy(bodyMesh.position);
+    spiritGlow.scale.set(.7, .68, 1);
+    spiritBodyPivot.add(spiritGlow);
+
+    const applySpiritTint = (id: PlanetId) => {
+      const tint = new THREE.Color(PLANETS[id].colors.planetCore);
+      fluffyWhiteMat.sheenColor.copy(tint).lerp(new THREE.Color(0xffffff), .72);
+      fluffyWhiteMat.emissive.copy(tint).lerp(new THREE.Color(0xffffff), .85);
+      spiritGlow.material.color.copy(tint);
+      rimLight.color.copy(tint).lerp(new THREE.Color(0xffffff), .45);
+      rimLight.intensity = .78;
+    };
+    applySpiritTint(stateRef.current.planetId);
 
     const topTuft = new THREE.Mesh(new THREE.SphereGeometry(0.068, 20, 20), fluffyWhiteMat);
+    topTuft.name = 'spirit-top-tuft';
     topTuft.position.set(0, 0.48, 0.02);
     spiritBodyPivot.add(topTuft);
 
@@ -900,7 +950,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       framingCamera.lookAt(virtualWalkingFocus);
       framingCamera.updateMatrixWorld(true);
       fitWanderingCamera(framingCamera, virtualWalkingFocus);
-      const targetWidth = projectedTorsoWidth(framingCamera, walkingTorsoWorld, w) * 1.3;
+      // A small breathing margin retains the gentle push-in for the organic silhouette.
+      const targetWidth = projectedTorsoWidth(framingCamera, walkingTorsoWorld, w) * 1.32;
       framingCamera.fov = CAMERA_FRAMING.restingFov;
       framingCamera.setViewOffset(w, h, 0, offsetY, w, h);
       framingCamera.up.copy(surfaceNormal);
@@ -1014,7 +1065,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const clock = new THREE.Clock();
     let frameId = 0;
     let walkPhase = 0;
-    let lastFootstepBeat = 0;
     let currentYaw = 0;
     let targetYaw = 0;
     let blinkTimer = 0;
@@ -1043,6 +1093,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       stoneBaseMat.color.set(next.biome.palette.primary);
       seatCushionMat.color.set(next.biome.palette.secondary);
       applyPortalColors(next.portalColors);
+      applySpiritTint(nextId);
       restingFrameDirty = true;
       lastNearRock = false; lastNearPortal = false;
       stateRef.current.onNearLandmarkChange(false, false);
@@ -1178,14 +1229,10 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       previousWalkCoords.lat = planetCoordsRef.current.lat;
       spiritRoot.quaternion.copy(walkingFrame);
       spiritRoot.position.set(0, PLANET_RADIUS, 0).applyQuaternion(walkingFrame);
-      // Landings follow the same phase as the visible steps, after collisions
-      // have resolved. Holding a direction against an obstacle stays silent.
-      const footstepBeat = Math.floor(walkPhase / Math.PI);
+      // One recording loops continuously while control input produces travel.
+      // Releasing controls, collisions, rest and modal locks pause it immediately.
       const actualSpeed = actualTravel / Math.max(dt, .001);
-      if (footstepBeat !== lastFootstepBeat && isMoving && !movementLocked && actualSpeed > .035) {
-        soundEngine.playFootstep(stateRef.current.planetId, actualSpeed / 2.1);
-      }
-      lastFootstepBeat = footstepBeat;
+      soundEngine.setFootstepsMoving(isJoystickActive && actualSpeed > .035);
       garden.update(elapsed, Math.min(rawDt, .1), spiritRoot, isMoving, !movementLocked, reducedMotion.matches, camera);
 
       const nextDestination = stateRef.current.guideToPortal ? 'portal' : 'rock';
@@ -1271,17 +1318,20 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         sceneRefs.current.hopImpulse = Math.max(0, sceneRefs.current.hopImpulse - dt * 2.2);
       }
       const hopOffset = Math.sin(sceneRefs.current.hopImpulse * Math.PI) * 0.24;
+      spiritBodyPivot.rotation.x = THREE.MathUtils.damp(spiritBodyPivot.rotation.x,
+        isResting ? -.025 + (reducedMotion.matches ? 0 : Math.sin(elapsed * .6) * .006) : 0, 6, dt);
 
       if (stateRef.current.pose === 'sitting') {
-        const sway = Math.sin(elapsed * 2.2) * 0.07;
+        const breath = reducedMotion.matches ? 0 : Math.sin(elapsed * Math.PI * 2 / 5.6);
+        const sway = reducedMotion.matches ? 0 : Math.sin(elapsed * .65) * .018;
         spiritBodyPivot.position.y = THREE.MathUtils.damp(
           spiritBodyPivot.position.y,
-          0.008,
+          0.008 + breath * .002,
           8,
           dt
         );
         spiritBodyPivot.rotation.z = sway;
-        bodyMesh.scale.set(1.12, 0.86, 1.08);
+        bodyMesh.scale.set(1.12 + breath * .005, .86 + breath * .008, 1.08 + breath * .004);
 
         leftArm.position.set(-0.14, 0.16, 0.18);
         rightArm.position.set(0.14, 0.16, 0.18);
@@ -1313,7 +1363,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         leftArm.position.set(-0.24, 0.22, 0.04 - stepSwing * 0.07);
         rightArm.position.set(0.24, 0.22, 0.04 + stepSwing * 0.07);
       } else {
-        const breathe = 0.008 + Math.sin(elapsed * 2.4) * 0.006;
+        const breathe = 0.008 + (reducedMotion.matches ? 0 : Math.sin(elapsed * 2.4) * 0.006);
         spiritBodyPivot.position.y = THREE.MathUtils.damp(
           spiritBodyPivot.position.y,
           breathe + hopOffset,
@@ -1342,8 +1392,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         }
       }
 
-      bodyOutline.scale.copy(bodyMesh.scale).multiplyScalar(1.035);
-
       // 5. 自然眨眼动画
       blinkTimer += dt;
       const isBlinking = blinkTimer % 3.6 > 3.44 || stateRef.current.pose === 'sitting';
@@ -1363,8 +1411,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 
       auraRingGroup.visible = stateRef.current.isMusicPlaying;
       if (stateRef.current.isMusicPlaying) {
-        auraRingGroup.rotation.y = elapsed * 0.85;
-        haloMesh.scale.setScalar(1.0 + Math.sin(elapsed * 2.0) * 0.035);
+        auraRingGroup.rotation.y = reducedMotion.matches ? 0 : elapsed * .32;
+        haloMesh.scale.setScalar(1.0 + (reducedMotion.matches ? 0 : Math.sin(elapsed * .7) * .02));
       } else {
         haloMesh.scale.setScalar(1.0);
       }
@@ -1411,6 +1459,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       }
     };
     window.addEventListener('resize', handleResize);
+    const stopHiddenFootsteps = () => { if (document.hidden) soundEngine.stopFootsteps(); };
+    document.addEventListener('visibilitychange', stopHiddenFootsteps);
     // Sitting reveals the message form and changes the stage height without a window resize.
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(container);
@@ -1418,6 +1468,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     if (sky) resizeObserver.observe(sky);
 
     return () => {
+      soundEngine.stopFootsteps();
+      document.removeEventListener('visibilitychange', stopHiddenFootsteps);
       window.removeEventListener('resize', handleResize);
       resizeObserver.disconnect();
       garden.dispose();
@@ -1434,6 +1486,9 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       materials.forEach(mat => mat.dispose());
       planetMat.map?.dispose();
       surfaceRelief.dispose();
+      plushRelief.dispose();
+      spiritGlowTexture.dispose();
+      spiritGlow.material.dispose();
       shadowTex.dispose();
       envTexture.dispose();
       renderer.domElement.removeEventListener('pointerdown', handlePointerDownRay);

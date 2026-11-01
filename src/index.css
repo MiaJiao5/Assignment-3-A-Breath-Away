@@ -723,6 +723,68 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   cursor: pointer;
 }
 .message-slot { min-height: 82px; width: 100%; }
+/* Sparse atmospheric planes sit behind the transparent 3D canvas and controls. */
+.planet-atmosphere {
+  position: absolute; inset: 0; z-index: 0; overflow: hidden;
+  pointer-events: none; contain: paint; opacity: .62;
+  transition: opacity 1.8s ease;
+}
+.planet-atmosphere.is-sky { opacity: .9; }
+.planet-atmosphere.is-sky[data-resting="true"] { opacity: 1; }
+.planet-atmosphere > div { position: absolute; pointer-events: none; }
+.atmosphere-halo {
+  inset: 25% -10% 8%; opacity: .22;
+  background: radial-gradient(ellipse at 50% 48%, var(--atmosphere-light), transparent 66%);
+}
+.atmosphere-mist { width: 120%; left: -10%; border-radius: 50%; filter: blur(32px); }
+.atmosphere-mist-far {
+  top: 8%; height: 53%; opacity: .17;
+  background: radial-gradient(ellipse at 26% 50%, var(--mist-cool), transparent 60%), radial-gradient(ellipse at 75% 60%, var(--mist-warm), transparent 64%);
+  animation: atmosphereFarDrift 43s ease-in-out infinite alternate;
+}
+.atmosphere-mist-near {
+  bottom: 10%; height: 36%; opacity: .15;
+  background: radial-gradient(ellipse at 45% 50%, var(--atmosphere-light), transparent 65%);
+  animation: atmosphereNearDrift 57s ease-in-out infinite alternate;
+}
+.atmosphere-dust, .atmosphere-stars, .atmosphere-meteors { inset: 0; }
+.atmosphere-dust i {
+  position: absolute; width: 2px; height: 2px; border-radius: 50%;
+  background: var(--atmosphere-light); box-shadow: 0 0 5px 1px var(--atmosphere-light);
+  animation: atmosphereDust var(--dust-duration) ease-in-out var(--dust-delay) infinite alternate;
+}
+.planet-atmosphere:not(.is-sky) .atmosphere-dust i:nth-child(n+9) { display: none; }
+.atmosphere-stars i {
+  position: absolute; width: 3px; height: 3px; border-radius: 50%;
+  background: var(--atmosphere-light); box-shadow: 0 0 9px 2px var(--atmosphere-light);
+  animation: atmosphereTwinkle 9s ease-in-out infinite;
+}
+.atmosphere-stars i::after { content: ''; position: absolute; inset: -3px 1px; background: var(--atmosphere-light); border-radius: 50%; opacity: .55; }
+.atmosphere-meteors i {
+  position: absolute; top: 13%; left: 12%; width: 76px; height: 1.5px;
+  border-radius: 50%; opacity: 0; transform: rotate(24deg);
+  background: linear-gradient(90deg, transparent, #e7e4ff88 68%, #fff5ecdd);
+  box-shadow: 0 0 5px #dfd9ff55;
+  animation: atmosphereMeteor 28s linear -20s infinite;
+}
+.atmosphere-meteors i:nth-child(2) { top: 28%; left: 41%; width: 54px; animation-duration: 33s; animation-delay: -6s; }
+@keyframes atmosphereFarDrift { from { transform: translate3d(-12px, 9px, 0) rotate(-6deg); } to { transform: translate3d(20px, -14px, 0) rotate(7deg); } }
+@keyframes atmosphereNearDrift { from { transform: translate3d(14px, 0, 0) scale(.96); } to { transform: translate3d(-17px, -12px, 0) scale(1.08); } }
+@keyframes atmosphereDust { from { opacity: .14; transform: translate3d(-5px, 14px, 0); } to { opacity: .42; transform: translate3d(9px, -19px, 0); } }
+@keyframes atmosphereTwinkle { 0%,100% { opacity: .16; } 50% { opacity: .55; } }
+@keyframes atmosphereMeteor {
+  0%,78% { opacity: 0; transform: translate3d(-18px, -8px, 0) rotate(24deg); }
+  82% { opacity: .55; }
+  91%,100% { opacity: 0; transform: translate3d(154px, 72px, 0) rotate(24deg); }
+}
+@media (max-height: 620px) { .planet-atmosphere .atmosphere-dust i:nth-child(n+9) { display: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .planet-atmosphere { transition: none; }
+  .planet-atmosphere * { animation: none !important; }
+  .planet-atmosphere .atmosphere-meteors { display: none; }
+  .atmosphere-dust i { opacity: .2; }
+  .atmosphere-stars i { opacity: .25; }
+}
 @keyframes messageReveal {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
@@ -865,10 +927,10 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   padding: 0;
 }
 @font-face {
-  font-family: 'Pinyon Script';
-  src: url('/fonts/PinyonScript-Regular.ttf') format('truetype');
+  font-family: 'Tangerine';
+  src: url('/fonts/Tangerine-Bold.ttf') format('truetype');
   font-style: normal;
-  font-weight: 400;
+  font-weight: 700;
   font-display: swap;
 }
 /* Preserve the old title's flow height: the orb and button keep their layout.
@@ -890,10 +952,11 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   pointer-events: none;
 }
 .intro-title[data-script="true"] {
-  --script-unit: min(110px, calc((min(100vw, 414px) - 64px) / 3.1), calc((min(100dvh, 860px) - 210px) / 4.25));
-  top: clamp(8px, 2vh, 20px);
+  --script-unit: min(132px, calc((min(100vw, 414px) - 64px) / 2.6), calc((min(100dvh, 860px) - 180px) / 3.8));
+  top: clamp(-28px, calc(58px - 10vh), -8px);
   height: calc(var(--script-unit) * 4.5);
-  font-family: 'Pinyon Script', 'Snell Roundhand', 'Segoe Script', cursive;
+  font-family: 'Tangerine', 'Snell Roundhand', 'Segoe Script', cursive;
+  font-weight: 700;
   font-kerning: normal;
   font-synthesis: none;
   letter-spacing: 0;
@@ -909,29 +972,29 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   background-clip: text;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 0 8px rgba(255,255,255,.22));
+  filter: none;
 }
 .intro-title-line-1 {
   top: 0;
   left: calc(var(--script-unit) * .1);
-  font-size: calc(var(--script-unit) * 1.6);
-  background-image: linear-gradient(115deg, #B69AE8 12%, #E9A6D1 90%);
+  font-size: calc(var(--script-unit) * 1.1);
+  background-image: linear-gradient(110deg, #B781CB 10%, #C58CD5 94%);
 }
 .intro-title-line-2 {
-  top: calc(var(--script-unit) * 1.3);
-  left: calc(var(--script-unit) * .08);
+  top: calc(var(--script-unit) * .9);
+  left: calc(var(--script-unit) * .04);
   font-size: var(--script-unit);
-  background-image: linear-gradient(110deg, #E9A6D1 8%, #F5B8A5 48%, #F6D98A 90%);
+  background-image: linear-gradient(105deg, #C68BCD 0%, #ED95CA 30%, #F7AE9B 62%, #FFD271 96%);
 }
 .intro-title-line-3 {
-  top: calc(var(--script-unit) * 2.8);
+  top: calc(var(--script-unit) * 1.85);
   left: calc(var(--script-unit) * -.02);
   padding-right: .12em;
   font-size: calc(var(--script-unit) * 1.06);
-  background-image: linear-gradient(110deg, #B69AE8 10%, #8FC5F5 55%, #91D9C1 92%);
+  background-image: linear-gradient(110deg, #B788EA 8%, #93B1F9 38%, #77C7E9 68%, #8AD7B0 98%);
 }
-.intro-title-line-2 .intro-title-capital { font-size: 1.42em; }
-.intro-title-line-3 .intro-title-capital { font-size: 1.35em; }
+.intro-title-line-2 .intro-title-capital { font-size: 1.5em; }
+.intro-title-line-3 .intro-title-capital { font-size: 1.2em; }
 .intro-copy { position: relative; isolation: isolate; }
 .intro-copy::before {
   content: ''; position: absolute; inset: -18px; z-index: -1;
@@ -1039,17 +1102,19 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .aura-sky { bottom: 4%; left: 0; background: #9ab8e4; }
 /* Independent, staggered color currents keep the cover softly alive without
    moving the title, button, or the aura's layout box. */
-.intro-scene .breathing-aura { animation: coverAuraBreath 8s ease-in-out infinite; }
-.intro-scene .aura-fluid { animation-duration: 20s; }
+.intro-scene > .my-auto { transform: translateY(clamp(-85px, -10vh, -50px)); }
+.intro-scene .breathing-aura { width: clamp(260px, 82vw, 340px); animation: coverAuraBreath 8s ease-in-out infinite; }
+.intro-scene .aura-fluid { animation-duration: 20s; filter: saturate(1.16); }
 .intro-scene .aura-fluid span {
+  width: 62%; height: 64%; filter: blur(34px); opacity: .85;
   animation: coverAuraFlow var(--flow-duration, 14s) ease-in-out infinite;
   animation-delay: var(--flow-delay, 0s);
   will-change: transform;
 }
-.intro-scene .aura-peach { --flow-x: 22px; --flow-y: 15px; --flow-turn: 12deg; --flow-duration: 13s; --flow-delay: -3s; }
-.intro-scene .aura-sun { --flow-x: -18px; --flow-y: 24px; --flow-turn: -14deg; --flow-duration: 16s; --flow-delay: -8s; }
-.intro-scene .aura-mint { --flow-x: -24px; --flow-y: -17px; --flow-turn: 10deg; --flow-duration: 15s; --flow-delay: -5s; }
-.intro-scene .aura-sky { --flow-x: 19px; --flow-y: -22px; --flow-turn: -12deg; --flow-duration: 18s; --flow-delay: -11s; }
+.intro-scene .aura-peach { background: #F5A0D5; left: -5%; top: -4%; z-index: 2; --flow-x: 22px; --flow-y: 15px; --flow-turn: 12deg; --flow-duration: 13s; --flow-delay: -3s; }
+.intro-scene .aura-sun { background: #FFE27A; right: -5%; top: 2%; z-index: 3; --flow-x: -18px; --flow-y: 24px; --flow-turn: -14deg; --flow-duration: 16s; --flow-delay: -8s; }
+.intro-scene .aura-mint { background: #9AE4C2; right: -6%; bottom: -4%; z-index: 1; --flow-x: -24px; --flow-y: -17px; --flow-turn: 10deg; --flow-duration: 15s; --flow-delay: -5s; }
+.intro-scene .aura-sky { background: #8DC9FF; left: -4%; bottom: -8%; z-index: 0; --flow-x: 19px; --flow-y: -22px; --flow-turn: -12deg; --flow-duration: 18s; --flow-delay: -11s; }
 @keyframes coverAuraBreath {
   0%,100% { transform: scale(.94); opacity: .88; }
   50% { transform: scale(1.09); opacity: 1; }

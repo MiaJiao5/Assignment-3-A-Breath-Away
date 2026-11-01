@@ -1,3 +1,5 @@
+import { publicAsset } from '../utils/publicAsset.ts';
+
 export type QuizChoice = 'A' | 'B' | 'C';
 
 export type PlanetId = 'OMEGA_01' | 'DELTA_02' | 'SIGMA_03' | 'PSI_04';
@@ -88,10 +90,10 @@ export interface PlanetConfig {
  * priority over the procedural Web Audio melody for that planet.
  */
 export const PLANET_AUDIO_URLS: Partial<Record<PlanetId, string>> = {
-  OMEGA_01: '/audio/omega-01-copper-afternoon.mp3',
-  DELTA_02: '/audio/delta-02-sunlight-on-the-moss.mp3',
-  SIGMA_03: '/audio/sigma-03-midday-horizon.mp3',
-  PSI_04: '/audio/psi-04-last-active-sensor.mp3',
+  OMEGA_01: publicAsset('audio/omega-01-copper-afternoon.mp3'),
+  DELTA_02: publicAsset('audio/delta-02-sunlight-on-the-moss.mp3'),
+  SIGMA_03: publicAsset('audio/sigma-03-midday-horizon.mp3'),
+  PSI_04: publicAsset('audio/psi-04-last-active-sensor.mp3'),
 };
 
 export const PLANETS: Record<PlanetId, PlanetConfig> = {

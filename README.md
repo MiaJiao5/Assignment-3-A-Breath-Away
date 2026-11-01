@@ -1,27 +1,30 @@
 # A Breath Away
 
-A small, dreamy escape: answer three gentle questions, wander around a planet with a fluffy companion, rest by the Listening Stone, and let a thought float into the stars.
+A small interactive escape for students and people working at a desk who would like a few quiet minutes. Answer three gentle questions, explore a pastel planet with a fluffy companion, sit by a Listening Stone, and let a thought float away.
 
-The cover follows a vivid pastel calligraphy direction: locally preloaded Tangerine Bold, three asymmetric English title lines, and separate flowing pink, warm yellow, blue and mint light regions. The title stays English in both language modes, while the original Begin Your Little Escape / 开启短暂漫游 action remains localized.
+The intention is a calm, understandable loop: **choose or move -> the world responds -> see and hear what changed -> decide whether to rest, explore or leave**.
 
-The 3D spirit uses a gently organic silhouette, matte velvet sheen and a fine procedural bump texture. A feathered glow, pastel rim lighting and a contact shadow replace the former hard outline. Listening keeps the exact orientation captured on sitting, with a slow 6.4-second breath, approximately 2.5px of vertical float over 7.8 seconds, and a tiny smoothed volume response sampled from the existing music bus. The camera finds the companion's back without turning the companion. There is no seated rocking, head rotation, independent tuft motion or random pose change. Reduced motion freezes all three character effects. Layered CSS mist, floating dust and slow twinkles deepen the planet atmosphere; While listening, all four planets have a sparse, softly staggered meteor shower drifting diagonally from upper-left to lower-right, tinted to the current planet. Zero-Gravity Sky retains two infrequent streaks while walking. Decorative motion respects reduced-motion preferences, and texture resources are released on exit.
+## Screenshots
 
-Each planet's portal unlocks only after sitting at its Listening Stone and standing up again. Approaching a portal before that shows no travel action. This unlock resets on every planet transfer, independently of the globally available Leave button. A softly glowing golden trail leads to the stone first, then to the portal after resting.
+<p>
+  <img src="docs/screenshots/cover.png" width="220" alt="The three-line pastel calligraphy cover of A Breath Away" />
+  <img src="docs/screenshots/listening.png" width="220" alt="The fluffy companion sitting on a planet beside its Listening Stone" />
+</p>
 
-Fluffy Little Footsteps is an original Web Audio sound: a short muffled sine impact, filtered fabric rustle and airy puff, with gentle pitch, gain and stereo variation. It uses no recording or audio loop. Accepted world-space travel advances a shared two-foot gait; left and right landing crossings drive both the rendered contact pose and one 100–125ms sound. Slower travel produces slower, quieter steps. Release, obstacles, sitting, panels, hidden pages and blur stop new contacts immediately; active tails fade within 12ms. Language changes preserve the gait phase. Noise buffers are generated once and reused; completed voices disconnect their nodes. The earlier owner-supplied footstep file remains an unused legacy asset.
+## Run from a fresh terminal
 
-## Run locally
-
-Use Node.js 22.18 or newer (also required for the browser test's native TypeScript imports).
+Use Node.js 24 LTS, or Node.js 22.18 or newer, with npm. No API key, Python environment, paid account, microphone or model download is needed to run this browser experience. Generated music and narration are included in `public/audio/`.
 
 ```sh
-npm install
+git clone https://github.com/MiaJiao5/Assignment-3-A-Breath-Away.git
+cd Assignment-3-A-Breath-Away
+npm ci
 npm run dev
 ```
 
-Open http://localhost:3000. The experience runs in the browser; no API key or backend service is needed. WebGL supports the planet scene, Web Audio generates ambience and effects, and the four supplied MP3 tracks play through a shared audio context. Headphones are optional.
+Open the Local URL printed by Vite, normally **http://localhost:3000**. If that port is already occupied, use the next URL Vite prints. Keep the terminal running while previewing.
 
-For live editing, keep the dev server running and change the files under `src/`. Vite updates the preview when you save. In VS Code, run **Simple Browser: Show** from the Command Palette, enter http://localhost:3000, and move that editor into a side-by-side group. A normal browser window works too. `dist/` contains generated build output; edit the source files rather than `dist/index.html`.
+To check and preview a production build:
 
 ```sh
 npm run lint
@@ -29,89 +32,68 @@ npm run build
 npm run preview
 ```
 
-## Explore
+Open the preview URL printed in the terminal, normally http://localhost:4173. Do not open `dist/index.html` directly as a local file. Edit files in `src/`; Vite refreshes the development preview when they change. Dependencies and exact npm resolutions are recorded in `package.json` and `package-lock.json`.
 
-The opening contains a three-line pastel calligraphy title, a breathing four-color aura with grain, and a light cloud button. The brand title, A Breath Away, stays in English in both languages. The button reads Begin Your Little Escape in English and 开启短暂漫游 in Chinese. It opens a separate interlude and unlocks browser audio. The companion is first revealed on arrival at a planet. The interlude first shows only the welcome paragraph. Narration starts after 0.5 seconds; one second after it ends, that paragraph fades away over 0.7 seconds. The headphone invitation then fades into the same text position over 0.9 seconds, accompanied by a pair of in-ear earbuds and soft ripples. I'm Ready begins fading in 0.25 seconds after the second paragraph has finished appearing. It continues to the questionnaire; blank-space continuation is available at the same stage. Before this, the hidden button cannot be clicked or focused. Language changes during narration replace the voice and cancel its old countdown; changes in the headphone stage translate the text without replaying the opening. Back from the first question reopens the interlude. Reduced motion retains the sequence and one-second pause with immediate visual changes.
+## Main interaction
 
-The questionnaire uses three tiny progress dots, unboxed questions, and frosted choices with matching emoji in English and Chinese. A/B/C remain internal answer values rather than visible labels. Click an answer to advance automatically; the third answer takes you into an abstract light-flow transition. Only Back / 返回 appears below the choices, centered; it lets you revisit answers or return from the first question to the interlude. All three questions are completed before entering a planet.
+| Your action | Response and feedback |
+| --- | --- |
+| Begin, listen to the short introduction, and confirm the headphone invitation | Audio unlocks, and the three-question calibration begins. Each answer gives a quiet chime and advances to the next question. Back revisits the previous step. |
+| Drag the bottom joystick, or use WASD / arrow keys | The companion walks, the globe rolls, alternating footsteps follow the actual gait, and nearby plants react. A glowing trail leads to the Listening Stone. |
+| Approach the stone and choose Sit & Listen | Movement stops, the camera gently moves closer, and that planet's music fades in. After five seconds, the thought input appears. |
+| Type a thought and choose Let It Float | The exact text appears above the companion and is saved locally. Empty or whitespace-only input gives a gentle, translated prompt. |
+| Choose Stand Up | Music fades out and exploration resumes. After the first rest, Leave stays available at the top left. The trail now leads to the portal. |
+| Approach the portal after resting on this planet | Enter Portal reveals an animated draw among unvisited planets. Cancel or Escape returns to the current planet. |
+| Choose Leave | A farewell preserves the planet's colors. Take This Calm With You restarts at the cover; Visit Another Planet continues the journey. |
 
-The journey's first planet opens with a concise bilingual guide explaining only the bottom joystick/keyboard controls, the Listening Stone's sit/music/zoom action, and the portal's travel action. It appears once per full experience, rather than on every planet. Scrollbars are visually hidden, with touch scrolling retained on very short displays. Confirm the guide to enable movement; the language switch stays accessible while reading. Later transfers arrive directly into exploration. A single planet-owned thought fades and floats upward in the reserved sky for 6–9 seconds, with new appearances 8–12 seconds apart. Before sitting, the bottom movement panel contains only a translucent 124px joystick with a 50px knob. Use the joystick, WASD, or arrow keys to walk while the globe rolls gently in the opposite direction. The character, landmarks, and contact shadow share the same surface transform, so feet stay aligned in every direction. Walking continues around the entire sphere without artificial borders. The camera follows the local surface frame and fits the animated planet, plants, landmarks and companion inside the canvas. Safe edges update on every frame and canvas resize so crowns remain complete around the rim. The seated view retains its local focus and gentle push-in.
-
-The four worlds use richer sunset/rose, forest/mint, cornflower/lavender, and indigo/magenta backgrounds. Tinted cream planets and a cool outline keep the white companion distinct. Each planet owns an independent `props` array in its configuration: type, clockwise angle from the top, latitude, scale and palette. Omega has red maples, golden wheat and orange berry bushes; Delta has layered cloud trees, grass tufts and mint mushrooms; Sigma has connected little clouds, dandelions and pastel pinwheels; Psi has translucent jellyfish mushrooms, rounded crystals and moon reeds. Rounded SVG gradients and color-matched soft glows are anchored on the 3D surface. Walking nearby releases themed leaves, dew, fluff or bubbles, with a quiet chime and a small sway, bounce or glow response. Entry hysteresis and a cooldown prevent stationary repeats. Footprints stay attached to the rolling surface and fade over 1.5 seconds. Reduced motion suppresses particles, footprints and decorative sway.
-
-| Planet | Decoration angles | Listening Stone / Portal |
-| --- | --- | --- |
-| Omega | 25, 80, 145, 210, 275, 330 degrees | 55 / 180 degrees |
-| Delta | 15, 65, 125, 190, 245, 305 degrees | 95 / 220 degrees |
-| Sigma | 40, 115, 175, 250, 315 degrees | 75 / 145 degrees |
-| Psi | 10, 70, 135, 200, 265, 325 degrees | 105 / 295 degrees |
-
-Travel replaces the ecology and repositions landmarks in the existing scene, updating the guide, proximity checks and collision normal without recreating WebGL. Language switching preserves the ecology and its interaction state. The left exit and right language switch share the same subtle glass background. Questionnaire choices are separated by 20px for easier scanning.
-
-A subtle cream-gold trail and a soft arch guide the first walk to the Listening Stone. Approaching it reveals Sit & Listen above the joystick. Click this button to sit; tapping the stone or companion does not sit automatically. The action fades away when walking farther from the stone, with separate arrival/departure distances to prevent flickering. There is no standalone Choose a Planet action. Sitting cancels movement and smoothly pushes the camera behind the companion to a local view at roughly 1.3 times its walking screen size. The camera fits the companion and mushroom cushion, rather than the entire globe; the globe may extend outside the frame and feathers gently above the controls. Floating thoughts occupy the sky above the companion. The trail disappears while seated. After Stand Up, a new trail points toward the portal. A physical clearance keeps the companion outside the stone, and its glow strengthens when approached. Stand Up restores movement and the walking camera. Reduced-motion preferences skip camera animation.
-
-After the opening gesture unlocks browser audio, a nearly subliminal filtered pink-noise breeze and low A-major-seventh drone sit beneath the three-question calibration, breathing on a six-second LFO cycle without a lead melody. Each answer produces a soft two-note water-ripple/chime overtone. Completing or skipping the questionnaire briefly lifts the bed and adds a short filtered-air whoosh. The same bed continues very quietly on the planet, ducks further when sitting, and supports a separate planet melody that fades in over 2.8 seconds. Stand Up fades that melody away over 2.2 seconds, then pauses it and restores the quiet environmental level.
-
-The four supplied MP3 files under `public/audio/` are the default seated music: Copper Afternoon (Omega), Sunlight on the Moss (Delta), Midday Horizon (Sigma), and Last Active Sensor (Psi). `PLANET_AUDIO_URLS` in `src/data/roamingData.ts` selects each file. The shared hidden `<audio>` element loops it through an independent gain bus, using smoothstep curves with a 2.8-second fade-in and 2.2-second stand-up fade-out. The curve starts and ends gently rather than rising sharply near its end. Each new sit starts at the beginning; language switching preserves progress. Session guards cancel obsolete playback and fade cleanup. Clearing a URL opts that planet back into the procedural melody.
-
-The owner's interlude recordings replace the earlier system narration: `voice_en_kokoro.wav` is copied as `/audio/intro-voice-en.wav`, and `voice_zh.mp3` as `/audio/intro-voice-zh.mp3`. `INTRO_VOICE_URLS` in `src/audio/introVoice.ts` selects the recording for the current interface language. The hidden `intro-voice-en` and `intro-voice-zh` players route through separate GainNodes with a 1.5-second fade-in. System speech never overlaps successful recorded playback; it reads the welcome paragraph only when a URL is null or a recording fails. Its completion or guarded silent fallback also starts the second-stage countdown. Leaving the interlude cancels narration and stage timers.
-
-The language control remains available. The Sound On / mute toggle has been removed; sitting still starts the ambient music. After the first Stand Up, Leave appears at the top left, mirroring the language switch. A compact Leave Anytime / 随时可以离开 guide explains that this button is available whenever needed, including while walking, resting, or viewing a panel. It stays unlocked across subsequent planets until the experience is restarted. Message input and Let It Float fade in after five seconds of listening; standing hides them while preserving the draft. Leave opens the farewell screen. Take This Calm With You returns to the welcome screen; Visit Another Planet opens the same portal journey available from the planet.
-
-Walk near the portal to reveal Enter Portal above the joystick. A short starlight animation leads to a circular orbit of unvisited planets, drifting clockwise. Find My Next Planet starts a random draw that slows to a stop under the top pointer, briefly highlights the result, and automatically travels there. The first draw has three destinations; after two total arrivals it has two. With one unvisited planet left, the entry animation leads straight there without a draw. Visited planets are tracked for the current journey in memory, and cancelled transfers do not count as arrivals. After all four planets, Begin Another Journey opens the other three destinations again; restarting from the welcome screen also clears the route. Language changes preserve the orbit, chosen destination, and animation progress. Stay on This Planet or Escape cancels pending travel. The portal veil covers the whole app uniformly, with language and the unlocked exit still available above it.
-
+The first planet has a one-time control guide. Portals stay locked until the visitor has rested on the current planet. The four worlds have different vegetation, music and five unique bilingual star-dust messages each. Only one built-in thought floats at a time; all five appear in shuffled order before repeating.
 
 ## English and Simplified Chinese
 
-Each planet owns exactly five unique bilingual star-dust messages. Only one appears at a time, on a shuffled cycle with no repeats until all five have appeared; cycle boundaries also avoid consecutive repeats. New appearances are 8–12 seconds apart and float upward with a gentle 6–9 second fade. Slight position and speed variation stays inside the reserved sky above the character. Guides, the planet picker and user head-bubbles pause the built-in messages to avoid overlap. Leaving the planet clears the timers; changing language updates the active text without restarting its animation or audio. User-written thoughts remain verbatim in their head-bubbles and local history, separate from the built-in cycle.
+First visits always start in English, regardless of browser language. The top-right EN / Chinese switch works throughout the experience, including panels. An explicit preference is stored as `a_breath_away_language` in localStorage. Missing, invalid or unavailable storage defaults to English; switching still works for that visit.
 
-The top-right **EN | 中文** switch is available on the cover, headphone interlude, questionnaire, transition, planet scenes, message area, planet picker, and farewell screen. It uses a faint glass background and stronger text weight/opacity for the selected language, with `aria-pressed` and a translated accessible group label.
+Switching preserves the scene, questionnaire answers, planet, position, listening state, music progress and unfinished input. The brand title stays in English in both modes. User-written messages are never translated. Up to 30 released thoughts are stored only in that browser under `brief_roaming_user_stardust_v1`; the app does not upload them. Clearing this site's browser storage removes them.
 
-First visits always start in English, regardless of browser language. Only an explicit selection changes the language. The preference is saved under `a_breath_away_language` in localStorage and restored on later visits. Missing, invalid, or inaccessible storage defaults to English. If saving fails, switching still works for the current visit.
+## Publishing and phone testing
 
-Changes appear immediately, preserving the scene, questionnaire answers, planet, character position, listening state, audio loops, and unfinished input. Built-in quotes and active feedback change language; user-written messages remain exactly as entered. Up to 30 released thoughts are saved locally under `brief_roaming_user_stardust_v1`. Nothing is uploaded by this application.
+GitHub Pages deployment is prepared in [.github/workflows/deploy.yml](.github/workflows/deploy.yml). A live link will be added here after the first successful deployment.
 
-Both languages use the same font sizes, line heights, spacing and control dimensions. The shared `BilingualText` component reserves the larger natural footprint of the English and Chinese copy; only the current language is visible or exposed to assistive technology. Wrapped headings, instructions and modal content keep the same layout when switching languages, without shrinking English text. User-written messages are displayed as entered.
+1. In this repository's **Settings > Pages**, select **GitHub Actions** as the source.
+2. Commit and push the complete source, assets and workflow to `main`.
+3. Wait for **Build and deploy to GitHub Pages** to finish in the Actions tab.
+4. Open the URL shown by that deployment on a phone, or send it to a tester. The browser app needs no installation and the computer need not stay on.
 
-Interface copy lives in [translations.ts](src/i18n/translations.ts), with the 20 planet-owned bilingual thoughts in [starMessages.ts](src/data/starMessages.ts). [LanguageContext.tsx](src/i18n/LanguageContext.tsx) supplies the current dictionary. Planet IDs, mapping rules, colors, and audio configuration stay in the language-independent data and audio modules.
+The workflow builds for this repository's subpath. All music and voice URLs follow Vite's base URL, so the same source also works locally at `/`. For a manual subpath preview:
 
-## Browser regression checks
+```sh
+npm run build -- --base /Assignment-3-A-Breath-Away/
+npm run preview -- --base /Assignment-3-A-Breath-Away/
+```
 
-Start the dev server in one terminal, then run:
+Open http://localhost:4173/Assignment-3-A-Breath-Away/. For same-Wi-Fi development testing, Vite also prints a Network URL; use that computer address on the phone, rather than `localhost`. Local access depends on the computer's firewall and network.
+
+The required trial with another person has **not yet been completed**. Send the working link without explaining the controls first, observe where the person hesitates, then record a real observation and decision in [PROCESS.md](PROCESS.md). Automated browser tests do not replace that trial.
+
+## Known limitations
+
+- A modern browser with WebGL and Web Audio is needed. Software rendering and older phones can be slow; physical-phone audio and touch testing are still pending.
+- Audio begins after a deliberate user gesture. Missing or unavailable narration falls back to system speech or quiet subtitles; unavailable planet music shows a localized message while exploration remains usable. Voice quality depends on the device if fallback speech is used.
+- Thoughts and preferences remain on one browser and are not synchronized across devices. Denied storage does not prevent the current session.
+- A previously run long-circuit movement regression reported a small Listening Stone clearance shortfall (0.5831 versus 0.585 world units). This remains a known check failure; it is not presented as a passing test.
+- Hosting and a user trial are prepared but not yet completed. Do not treat a planned URL as a verified live demonstration.
+
+## Development checks
+
+The normal build and type check are the commands above. Optional browser regressions use Playwright with an installed Chrome:
 
 ```sh
 npm install --no-save --package-lock=false playwright
-node tests/i18n-browser.cjs
-node tests/rest-browser.cjs
-node tests/portal-discovery.cjs
-node tests/seated-framing.cjs
-node tests/visual-garden.cjs
-node tests/interlude-audio.cjs
-node tests/interlude-sequence.cjs
-node tests/narration-recording.cjs
 node tests/cover-v2.cjs
+node tests/i18n-browser.cjs
 node tests/fluffy-footsteps.cjs
 node tests/biomes.cjs
-node tests/planet-guide.cjs
-node tests/planet-polish.cjs
-node tests/bilingual-layout.cjs
-node tests/planet-framing.cjs
-node tests/star-messages.cjs
-node tests/sky-farewell.cjs
-node tests/farewell-return.cjs
-node tests/spirit-atmosphere.cjs
 ```
 
-The tests use an installed Google Chrome in headless mode. Set `BROWSER_PATH` to another Chromium browser executable if needed, `APP_URL` for a different server URL, or `PLAYWRIGHT_MODULE` for an existing Playwright module directory. The suites check both languages across every screen and panel, preference persistence and storage failures, input and questionnaire preservation, planet and character state, uninterrupted audio timers, localized feedback and accessible labels, and controls at mobile widths from 320 to 414 pixels. The movement/resting regression checks counter-rotation in all four directions, surface and shadow alignment, the joystick-only panel, initial glowing guidance, tapping the Listening Stone, the camera behind the seated companion, rest locking, and restoring movement. Screenshots are saved under tests/; generated images are ignored by Git.
+Set `APP_URL` to the running development server if it uses a different port, or `PLAYWRIGHT_MODULE` to an existing Playwright installation. `tests/pages-deployment.cjs` exercises the built site under its repository subpath, including real audio playback and empty-input feedback. Additional targeted scripts under `tests/` cover narration, guide behavior, camera framing, planet travel and farewell return. Generated test screenshots are ignored by Git; the two curated screenshots above are included for the submission.
 
-The seated framing regression projects the companion and cushion into the camera view at mobile and desktop sizes. It checks a measurable local push-in, guarded camera distance, a reserved message area above the character, fitting controls, and drafts surviving resizing and language changes. The interlude/audio suite also checks all four actual MP3 files, looping, language continuity, rapid re-sitting, and bounded zoom at 320, 390, 414px and desktop sizes. Recorded narration tests use existing tracks only as playback fixtures, then simulate a failed optional recording to verify a single graceful speech fallback.
-
-Confirming the headphone invitation fades the supplied `beginning-music.mp3` into the questionnaire at 70% media volume. It fades out when returning to the interlude or transitioning into the planet. Language changes preserve playback. The farewell screen contains one larger SVG cloud companion with a lightly textured edge, independent gentle waving, floating and blinking. Star glints and soft nebula wisps take their colors from the current planet, preserving the original background mapping. Below the companion, a Cormorant Garamond heading and Nunito Sans caption sit directly on the background. The main return button is followed by a quieter text link to another planet. Reduced motion disables decorative animations. Scrollbars are hidden throughout the interface while touch and wheel scrolling remain available on short displays. `sky-farewell.cjs` verifies these transitions, all four farewell palettes, long input, mobile layouts, and language continuity.
-
-See [PROCESS.md](PROCESS.md) for implementation and validation notes, and [CREDITS.md](CREDITS.md) for acknowledgements.
-
-The star-message regression advances a browser clock through multiple complete cycles on every planet, checks interval/lifetime bounds and timer cleanup, and measures all bilingual sentences at narrow mobile and desktop sizes. The biome regression also verifies both message translations after actual travel to each of the four planets.
-
-Returning from farewell through Visit Another Planet initializes the remounted 3D scene at its normal arrival position before opening the picker. Accumulated movement, target coordinates and spring velocity are cleared together, including when selection is cancelled. Journey progress, the unlocked Leave action, language and unfinished message drafts are retained. Ordinary portal transfers keep their existing scene and movement frame. `farewell-return.cjs` checks cancelled draws, completed draws and the direct final destination after real walking and seated exits.
-
-The refined cover uses locally bundled Google Fonts Allura Regular at its real 400 weight, selected after comparing rendered Ballet and Allura letterforms with the supplied reference. One SVG contains A / Breath / Away with controlled capital sizes and one shared page-space paint field: a cool multi-stop gradient with a warm middle-right overlay. The colors flow across all three lines without restarting per word; no synthetic weight or stroke is used. Pink, champagne, powder-blue and mint radial fields blend into warm-white paper with softer outer blur and gentle independent motion. The original oval CTA geometry and language/navigation controls are preserved. `cover-v2.cjs` verifies actual rendered font glyphs through Chrome, shared paint references, complete flourishes, bilingual geometry and navigation at five viewports.
+Read [PROCESS.md](PROCESS.md) for design changes, AI use, tests and the pending user trial. [CREDITS.md](CREDITS.md) records software, fonts, course material and generated audio sources.

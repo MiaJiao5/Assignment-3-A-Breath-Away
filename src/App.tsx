@@ -22,6 +22,7 @@ import { BilingualText } from './i18n/BilingualText';
 import { PlanetAtmosphere } from './components/PlanetAtmosphere';
 import { PlanetStarMessages } from './components/PlanetStarMessages';
 import { CoverTitle } from './components/CoverTitle';
+import { publicAsset } from './utils/publicAsset';
 
 type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
@@ -418,7 +419,7 @@ export default function App() {
 
       {/* Optional MP3 target. Configure PLANET_AUDIO_URLS in roamingData.ts. */}
       <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
-      <audio id="beginning-music" src="/audio/beginning-music.mp3" preload="auto" className="hidden" />
+      <audio id="beginning-music" src={publicAsset('audio/beginning-music.mp3')} preload="auto" className="hidden" />
       {/* Optional /audio/voice_en.mp3 and /audio/voice_zh.mp3 are configured in
           audio/introVoice.ts. No src is set while recordings are unavailable. */}
       <audio id="intro-voice-en" preload="none" className="hidden" />

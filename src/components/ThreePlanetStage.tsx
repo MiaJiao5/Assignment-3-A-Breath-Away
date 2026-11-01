@@ -7,6 +7,7 @@ import { OverheadBubbleData, SpiritPose } from './FluffySpirit';
 import { createPlanetGarden } from './PlanetBiomeGarden';
 import { BilingualText } from '../i18n/BilingualText';
 import { soundEngine } from '../audio/soundEngine';
+import { advanceFluffyGait, FLUFFY_STEP_DISTANCE, MIN_GAIT_SPEED, type FluffyFoot } from '../animation/fluffyGait';
 
 export interface JoystickVector {
   x: number; // -1 (left) to +1 (right)
@@ -302,7 +303,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const restingUp = new THREE.Vector3();
     const framingPoint = new THREE.Vector3();
     const surfaceNormal = new THREE.Vector3();
-    const surfaceForward = new THREE.Vector3();
     const worldUp = new THREE.Vector3(0, 1, 0);
     const cameraFocus = wanderingFocus.clone();
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -818,12 +818,14 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const leftFoot = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), fluffyWhiteMat);
     leftFoot.name = 'left-foot';
     leftFoot.scale.set(0.95, 0.65, 1.25);
+    leftFoot.name = 'spirit-left-foot';
     leftFoot.position.set(-0.095, 0.045, 0.05);
     spiritBodyPivot.add(leftFoot);
 
     const rightFoot = new THREE.Mesh(new THREE.SphereGeometry(0.065, 16, 16), fluffyWhiteMat);
     rightFoot.name = 'right-foot';
     rightFoot.scale.set(0.95, 0.65, 1.25);
+    rightFoot.name = 'spirit-right-foot';
     rightFoot.position.set(0.095, 0.045, 0.05);
     spiritBodyPivot.add(rightFoot);
 
@@ -848,15 +850,25 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     let walkingStageHeight = height;
     let restingFrameDirty = true;
     let previousResting = false;
+    const restingOrientation = new THREE.Quaternion();
+    let restingStarted = 0;
+    let listeningMusicLevel = 0;
+    const floatOrigin = new THREE.Vector3();
+    const floatOffset = new THREE.Vector3();
     let restingHeightDifference = 16;
     const framingCamera = camera.clone();
+    const walkingReferenceCamera = camera.clone();
+    let walkingReferenceWidth = width;
+    let walkingReferenceHeight = height;
+    let hasWalkingReference = false;
     const torsoCenter = new THREE.Vector3();
     const projectionLeft = new THREE.Vector3();
     const walkingTorsoWorld = new THREE.Matrix4();
     const restingTorsoWorld = new THREE.Matrix4();
-    const seatedPivot = new THREE.Matrix4().makeRotationY(Math.PI).setPosition(0, .008, 0);
+    const seatedPivot = new THREE.Matrix4();
     const seatedTorso = new THREE.Matrix4().compose(new THREE.Vector3(0, .25, 0), new THREE.Quaternion(), new THREE.Vector3(1.12, .86, 1.08));
     let captureWalkingBody = true;
+    let walkingWidthPerPixel = 0;
     const projectedTorsoWidth = (view: THREE.PerspectiveCamera, matrix: THREE.Matrix4, w: number) => {
       const vertices = bodyMesh.geometry.attributes.position;
       let min = Infinity, max = -Infinity;
@@ -917,7 +929,10 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const frameRestingScene = () => {
       if (!restingFrameDirty) return;
       restingFrameDirty = false;
-      restingBack.copy(surfaceForward).addScaledVector(surfaceNormal, CAMERA_FRAMING.restingElevation).normalize();
+      // The camera finds the seated companion's back; the companion never turns.
+      restingBack.set(0, 0, -1).applyQuaternion(restingOrientation)
+        .applyQuaternion(spiritRoot.quaternion).applyQuaternion(planetPivot.quaternion)
+        .addScaledVector(surfaceNormal, CAMERA_FRAMING.restingElevation).normalize();
       restingRight.crossVectors(surfaceNormal, restingBack).normalize();
       restingUp.crossVectors(restingBack, restingRight).normalize();
       const w = camera.view!.fullWidth;
@@ -931,8 +946,13 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       torsoCenter.set(0, .25, 0);
       spiritRoot.localToWorld(torsoCenter);
       if (captureWalkingBody) {
-        bodyMesh.updateWorldMatrix(true, false);
-        walkingTorsoWorld.copy(bodyMesh.matrixWorld);
+        if (hasWalkingReference) {
+          walkingWidthPerPixel = projectedTorsoWidth(walkingReferenceCamera, walkingTorsoWorld, walkingReferenceWidth) / walkingReferenceHeight;
+        } else {
+          bodyMesh.updateWorldMatrix(true, false);
+          walkingTorsoWorld.copy(bodyMesh.matrixWorld);
+          walkingWidthPerPixel = 0;
+        }
         captureWalkingBody = false;
       }
       restingTorsoWorld.copy(spiritRoot.matrixWorld).multiply(seatedPivot).multiply(seatedTorso);
@@ -940,18 +960,21 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       // Keep some sky above the head without shifting toward the side cushion.
       restingFocus.copy(torsoCenter).addScaledVector(restingUp, .22);
 
-      // Compare with a virtual walking view at this screen size, so zoom is
-      // measured on screen rather than cancelled by a compensating wider lens.
-      framingCamera.fov = CAMERA_FRAMING.walkingFov;
-      framingCamera.setViewOffset(w, walkingStageHeight, 0, Math.min(22, walkingStageHeight * .05), w, walkingStageHeight);
-      framingCamera.position.copy(followPosition);
-      framingCamera.up.copy(followUp);
-      virtualWalkingFocus.copy(followFocus);
-      framingCamera.lookAt(virtualWalkingFocus);
-      framingCamera.updateMatrixWorld(true);
-      fitWanderingCamera(framingCamera, virtualWalkingFocus);
-      // A small breathing margin retains the gentle push-in for the organic silhouette.
-      const targetWidth = projectedTorsoWidth(framingCamera, walkingTorsoWorld, w) * 1.32;
+      // Capture the walking silhouette once, before the seated pose changes its
+      // bounds. Resizes scale that same reference with the available height;
+      // plants and the retained facing direction must not amplify the zoom.
+      if (!walkingWidthPerPixel) {
+        framingCamera.fov = CAMERA_FRAMING.walkingFov;
+        framingCamera.setViewOffset(w, walkingStageHeight, 0, Math.min(22, walkingStageHeight * .05), w, walkingStageHeight);
+        framingCamera.position.copy(followPosition);
+        framingCamera.up.copy(followUp);
+        virtualWalkingFocus.copy(followFocus);
+        framingCamera.lookAt(virtualWalkingFocus);
+        framingCamera.updateMatrixWorld(true);
+        fitWanderingCamera(framingCamera, virtualWalkingFocus);
+        walkingWidthPerPixel = projectedTorsoWidth(framingCamera, walkingTorsoWorld, w) / walkingStageHeight;
+      }
+      const targetWidth = walkingWidthPerPixel * walkingStageHeight * 1.32;
       framingCamera.fov = CAMERA_FRAMING.restingFov;
       framingCamera.setViewOffset(w, h, 0, offsetY, w, h);
       framingCamera.up.copy(surfaceNormal);
@@ -1065,6 +1088,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const clock = new THREE.Clock();
     let frameId = 0;
     let walkPhase = 0;
+    let gaitPosePhase = 0;
     let currentYaw = 0;
     let targetYaw = 0;
     let blinkTimer = 0;
@@ -1126,13 +1150,22 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const elapsed = clock.getElapsedTime();
       const isResting = stateRef.current.pose === 'sitting';
       if (isResting !== previousResting) {
-        if (isResting) restingHeightDifference = camera.view!.fullHeight - walkingStageHeight;
+        if (isResting) {
+          restingOrientation.copy(spiritBodyPivot.quaternion);
+          seatedPivot.makeRotationFromQuaternion(restingOrientation).setPosition(0, .018, 0);
+          restingStarted = elapsed;
+          listeningMusicLevel = 0;
+          walkingStageHeight = hasWalkingReference ? walkingReferenceHeight : walkingStageHeight;
+          // DOM layout can precede the canvas ResizeObserver by one frame.
+          // Measure the actual seated area rather than its stale camera view.
+          restingHeightDifference = (container?.clientHeight ?? camera.view!.fullHeight) - walkingStageHeight;
+        }
         if (isResting) captureWalkingBody = true;
         restingFrameDirty = true;
         previousResting = isResting;
       }
       if (!isResting) walkingStageHeight = camera.view!.fullHeight;
-      const movementLocked = isResting || !stateRef.current.interactionEnabled;
+      const movementLocked = isResting || !stateRef.current.interactionEnabled || document.hidden;
 
       const joy = joystickInputRef.current;
       const joyMag = Math.min(1, Math.hypot(joy.x, joy.y));
@@ -1170,16 +1203,15 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         springVelocityRef.current.lon,
         springVelocityRef.current.lat
       );
-      const isMoving =
+      const wantsToMove =
         (isJoystickActive || springSpeed > 0.045) && !movementLocked;
 
-      if (isMoving) {
+      if (wantsToMove) {
         const moveVx = isJoystickActive ? joy.x : springVelocityRef.current.lon;
         const moveVy = isJoystickActive ? joy.y : springVelocityRef.current.lat;
         if (Math.hypot(moveVx, moveVy) > 0.02) {
           targetYaw = Math.atan2(moveVx, moveVy || 0.001);
         }
-        walkPhase += dt * (7.2 + Math.min(1.4, Math.max(joyMag, springSpeed * 0.85)) * 4.5);
       } else if (!isResting) {
         targetYaw = THREE.MathUtils.damp(targetYaw, 0, 3.5, dt);
       }
@@ -1229,10 +1261,20 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       previousWalkCoords.lat = planetCoordsRef.current.lat;
       spiritRoot.quaternion.copy(walkingFrame);
       spiritRoot.position.set(0, PLANET_RADIUS, 0).applyQuaternion(walkingFrame);
-      // One recording loops continuously while control input produces travel.
-      // Releasing controls, collisions, rest and modal locks pause it immediately.
-      const actualSpeed = actualTravel / Math.max(dt, .001);
-      soundEngine.setFootstepsMoving(isJoystickActive && actualSpeed > .035);
+      // The same accepted travel drives both the leg phase and landing sounds.
+      // Limit correction-only displacement and never emit a catch-up burst.
+      const gaitDistance = Math.min(actualTravel, travelAngle * PLANET_RADIUS, FLUFFY_STEP_DISTANCE * .95);
+      const actualSpeed = gaitDistance / Math.max(dt, .001);
+      const isMoving = isJoystickActive && actualSpeed > MIN_GAIT_SPEED;
+      let footLanding: FluffyFoot | null = null;
+      if (isMoving) {
+        const gait = advanceFluffyGait(walkPhase, gaitDistance);
+        walkPhase = gait.phase;
+        gaitPosePhase = gait.posePhase;
+        footLanding = gait.landing;
+      } else {
+        soundEngine.stopFootsteps();
+      }
       garden.update(elapsed, Math.min(rawDt, .1), spiritRoot, isMoving, !movementLocked, reducedMotion.matches, camera);
 
       const nextDestination = stateRef.current.guideToPortal ? 'portal' : 'rock';
@@ -1254,7 +1296,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       }
 
       // Preserve the rear perspective while fitting the whole seated scene.
-      const cameraBlend = reducedMotion.matches ? 1 : 1 - Math.exp(-CAMERA_FRAMING.response * Math.min(rawDt, 0.1));
+      const cameraBlend = reducedMotion.matches ? 1 : 1 - Math.exp(-CAMERA_FRAMING.response * rawDt);
       const targetFov = isResting ? CAMERA_FRAMING.restingFov : CAMERA_FRAMING.walkingFov;
       if (camera.fov !== targetFov) {
         camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, cameraBlend);
@@ -1262,7 +1304,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         camera.updateProjectionMatrix();
       }
       surfaceNormal.copy(spiritRoot.position).normalize().applyQuaternion(planetPivot.quaternion);
-      surfaceForward.set(0, 0, 1).applyQuaternion(spiritRoot.quaternion).applyQuaternion(planetPivot.quaternion);
       followRotation.copy(planetPivot.quaternion).multiply(walkingFrame).multiply(initialFrameInverse);
       followPosition.copy(wanderingOffset).applyQuaternion(followRotation).add(planetPivot.position);
       followFocus.copy(wanderingFocusOffset).applyQuaternion(followRotation).add(planetPivot.position);
@@ -1308,38 +1349,50 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const idleEnvelope = idleAllowed && idleAge >= 0 && idleAge < 3.6 ? Math.sin(idleAge / 3.6 * Math.PI) : 0;
       spiritBodyPivot.userData.idleAction = idleEnvelope > 0 ? idleAction : null;
       const idleTurn = idleAction === 'dance' ? Math.sin(idleAge * 4) * .22 * idleEnvelope : 0;
-      const desiredYaw = isResting ? Math.PI : targetYaw + idleTurn;
-      const yawDelta = Math.atan2(Math.sin(desiredYaw - currentYaw), Math.cos(desiredYaw - currentYaw));
-      currentYaw += yawDelta * (reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt));
-      spiritBodyPivot.rotation.y = currentYaw;
+      if (isResting) {
+        spiritBodyPivot.quaternion.copy(restingOrientation);
+      } else {
+        const desiredYaw = targetYaw + idleTurn;
+        const yawDelta = Math.atan2(Math.sin(desiredYaw - currentYaw), Math.cos(desiredYaw - currentYaw));
+        currentYaw += yawDelta * (reducedMotion.matches ? 1 : 1 - Math.exp(-8 * dt));
+        spiritBodyPivot.rotation.y = currentYaw;
+        spiritBodyPivot.rotation.x = THREE.MathUtils.damp(spiritBodyPivot.rotation.x, 0, 6, dt);
+      }
 
       if (isResting) sceneRefs.current.hopImpulse = 0;
       if (sceneRefs.current.hopImpulse > 0.01) {
         sceneRefs.current.hopImpulse = Math.max(0, sceneRefs.current.hopImpulse - dt * 2.2);
       }
       const hopOffset = Math.sin(sceneRefs.current.hopImpulse * Math.PI) * 0.24;
-      spiritBodyPivot.rotation.x = THREE.MathUtils.damp(spiritBodyPivot.rotation.x,
-        isResting ? -.025 + (reducedMotion.matches ? 0 : Math.sin(elapsed * .6) * .006) : 0, 6, dt);
-
       if (stateRef.current.pose === 'sitting') {
-        const breath = reducedMotion.matches ? 0 : Math.sin(elapsed * Math.PI * 2 / 5.6);
-        const sway = reducedMotion.matches ? 0 : Math.sin(elapsed * .65) * .018;
-        spiritBodyPivot.position.y = THREE.MathUtils.damp(
+        const restAge = elapsed - restingStarted;
+        const breath = reducedMotion.matches ? 0 : Math.sin(restAge * Math.PI * 2 / 6.4);
+        listeningMusicLevel = reducedMotion.matches ? 0 : THREE.MathUtils.damp(
+          listeningMusicLevel, stateRef.current.isMusicPlaying ? soundEngine.getPlanetMusicLevel() : 0, 2, rawDt);
+        // Project the surface-normal direction to keep the whole float around
+        // 2.5 CSS pixels across mobile/desktop sizes and seated camera distances.
+        spiritRoot.localToWorld(floatOrigin.set(0, .25, 0));
+        floatOffset.copy(floatOrigin).addScaledVector(surfaceNormal, .1).project(camera);
+        floatOrigin.project(camera);
+        const pixelsPerUnit = Math.max(40, Math.abs(floatOffset.y - floatOrigin.y) * camera.view!.fullHeight * 5);
+        const float = reducedMotion.matches ? 0 : Math.sin(restAge * Math.PI * 2 / 7.8) * 1.25 / pixelsPerUnit;
+        const musicResponse = listeningMusicLevel * .003;
+        spiritBodyPivot.position.y = reducedMotion.matches ? .018 : THREE.MathUtils.damp(
           spiritBodyPivot.position.y,
-          0.008 + breath * .002,
+          .018 + float,
           8,
-          dt
+          rawDt
         );
-        spiritBodyPivot.rotation.z = sway;
-        bodyMesh.scale.set(1.12 + breath * .005, .86 + breath * .008, 1.08 + breath * .004);
+        bodyMesh.scale.set(1.12 + breath * .005 + musicResponse,
+          .86 + breath * .007 + musicResponse * .5, 1.08 + breath * .004 + musicResponse);
 
         leftArm.position.set(-0.14, 0.16, 0.18);
         rightArm.position.set(0.14, 0.16, 0.18);
         leftFoot.position.set(-0.11, 0.05, 0.18);
         rightFoot.position.set(0.11, 0.05, 0.18);
-      } else if (isMoving || stateRef.current.pose === 'walking') {
-        const stepBob = Math.abs(Math.sin(walkPhase)) * 0.075;
-        const stepSwing = Math.sin(walkPhase);
+      } else if (isMoving) {
+        const stepBob = Math.abs(Math.sin(gaitPosePhase)) * 0.075;
+        const stepSwing = Math.sin(gaitPosePhase);
 
         spiritBodyPivot.position.y = stepBob + hopOffset;
         spiritBodyPivot.rotation.z = stepSwing * 0.06;
@@ -1392,6 +1445,10 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         }
       }
 
+      // Trigger after assigning the contact pose, so both the foot and soft
+      // impact happen on this rendered frame, rather than on an audio timer.
+      if (footLanding) soundEngine.playFluffyFootstep(footLanding, actualSpeed);
+
       // 5. 自然眨眼动画
       blinkTimer += dt;
       const isBlinking = blinkTimer % 3.6 > 3.44 || stateRef.current.pose === 'sitting';
@@ -1419,6 +1476,17 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 
       if (!isResting) fitWanderingCamera(camera, cameraFocus);
       renderer.render(scene, camera);
+      if (!isResting) {
+        // Preserve the last actual walking composition, before rest changes the
+        // viewport, body proportions or camera direction. Only matrices are
+        // copied here; the silhouette is projected once on sit entry.
+        walkingTorsoWorld.copy(bodyMesh.matrixWorld);
+        walkingReferenceCamera.projectionMatrix.copy(camera.projectionMatrix);
+        walkingReferenceCamera.matrixWorldInverse.copy(camera.matrixWorldInverse);
+        walkingReferenceWidth = camera.view!.fullWidth;
+        walkingReferenceHeight = camera.view!.fullHeight;
+        hasWalkingReference = true;
+      }
       const bubble = overheadBubbleRef.current;
       if (bubble && container) {
         topTuft.localToWorld(headPoint.set(0, .075, 0)).project(camera);

@@ -9,7 +9,7 @@ const { completeQuiz } = require('./navigation.cjs');
     const errors = []; page.on('pageerror', e => errors.push(e.message));
     const b = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://127.0.0.1:3001');
-    await b('Find Your Calm Zone').click(); await b("I'm Ready →").click(); await completeQuiz(page);
+    await b('Begin Your Little Escape').click(); await b("I'm Ready →").click(); await completeQuiz(page);
     const guide = page.getByRole('dialog', { name: 'A Little Guide to Your Planet' });
     await guide.waitFor();
     for (const language of ['EN', '中文']) {

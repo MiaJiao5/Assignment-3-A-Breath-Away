@@ -20,21 +20,17 @@ import { BreathingAuraOrb } from './components/BreathingAuraOrb';
 import { IntroInterlude } from './components/IntroInterlude';
 import { BilingualText } from './i18n/BilingualText';
 import { PlanetAtmosphere } from './components/PlanetAtmosphere';
+import { PlanetStarMessages } from './components/PlanetStarMessages';
+import { CoverTitle } from './components/CoverTitle';
 
 type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
 
-interface FloatingStardustItem {
-  id: number;
-  text: string;
-  builtinIndex?: number;
-  lane: number;
-}
-
 const LOCAL_STORAGE_KEY = 'brief_roaming_user_stardust_v1';
+const INITIAL_PLANET_COORDINATES = { lon: 0.28, lat: 0.04 };
 
 export default function App() {
   const { copy } = useLanguage();
-  const { QUIZ_QUESTIONS, ROAMING_COPY, BUILTIN_STARDUST_QUOTES } = copy;
+  const { QUIZ_QUESTIONS, ROAMING_COPY } = copy;
   const [feedback, setFeedback] = useState<'releaseSuccess' | 'audioError' | null>(null);
   const [act, setAct] = useState<AppAct>('intro');
   const [quizStep, setQuizStep] = useState<number>(0);
@@ -60,23 +56,23 @@ export default function App() {
 
   // 3D 星球控制器输入向量、当前球面经纬度、弹簧目标经纬度与速度 Ref
   const joystickInputRef = useRef<JoystickVector>({ x: 0, y: 0 });
-  const planetCoordsRef = useRef<{ lon: number; lat: number }>({
-    lon: 0.28,
-    lat: 0.04,
-  });
-  const targetCoordsRef = useRef<{ lon: number; lat: number }>({
-    lon: 0.28,
-    lat: 0.04,
-  });
+  const planetCoordsRef = useRef({ ...INITIAL_PLANET_COORDINATES });
+  const targetCoordsRef = useRef({ ...INITIAL_PLANET_COORDINATES });
   const springVelocityRef = useRef<{ lon: number; lat: number }>({
     lon: 0,
     lat: 0,
   });
+  const resetArrivalPosition = useCallback(() => {
+    planetCoordsRef.current = { ...INITIAL_PLANET_COORDINATES };
+    targetCoordsRef.current = { ...INITIAL_PLANET_COORDINATES };
+    springVelocityRef.current = { lon: 0, lat: 0 };
+    joystickInputRef.current = { x: 0, y: 0 };
+  }, []);
   const [isNearListeningRock, setIsNearListeningRock] = useState<boolean>(false);
   const [isNearPortal, setIsNearPortal] = useState<boolean>(false);
   const canUsePortal = hasRestedOnPlanet && isNearPortal;
 
-  // 星尘文字循环队列（内置 5 条 + 本地持久化用户心情）
+  // Keep user-written thoughts verbatim, separately from planet-owned messages.
   const [userQuotes, setUserQuotes] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
@@ -89,21 +85,6 @@ export default function App() {
     }
     return [];
   });
-  const [floatingStardust, setFloatingStardust] = useState<FloatingStardustItem[]>([]);
-  const quoteCursorRef = useRef<number>(0);
-
-  const spawnStardust = useCallback((text: string, builtinIndex?: number) => {
-    const id = Date.now() + Math.random();
-    const laneCount = window.matchMedia('(max-height: 740px)').matches ? 1 : 2;
-    setFloatingStardust(previous => {
-      const lane = Array.from({ length: laneCount }, (_, index) => index)
-        .find(index => !previous.some(item => item.lane === index));
-      // An occupied lane belongs to its current thought until animationend.
-      // Incoming thoughts never evict a visible one or move another row.
-      return lane === undefined ? previous : [...previous, { id, text, builtinIndex, lane }];
-    });
-  }, []);
-
   // 树洞输入与头顶气泡
   const [moodInput, setMoodInput] = useState<string>('');
   const [overheadBubble, setOverheadBubble] = useState<OverheadBubbleData | null>(null);
@@ -118,37 +99,6 @@ export default function App() {
     if (act !== 'roaming') return;
     setVisitedPlanetIds(previous => previous.includes(planetId) ? previous : [...previous, planetId]);
   }, [act, planetId]);
-
-  // Leave space between slow, horizontal thoughts while listening.
-  useEffect(() => {
-    if (act !== 'roaming' || !isMusicPlaying) {
-      setFloatingStardust([]);
-      return;
-    }
-
-    const allQuotes = [...userQuotes, ...BUILTIN_STARDUST_QUOTES];
-    if (allQuotes.length === 0) return;
-
-    const spawnNextThought = () => {
-      const cursor = quoteCursorRef.current % allQuotes.length;
-      const builtinIndex = cursor >= userQuotes.length ? cursor - userQuotes.length : undefined;
-      spawnStardust(allQuotes[cursor], builtinIndex);
-      quoteCursorRef.current += 1;
-    };
-
-    const initialTimer = window.setTimeout(() => {
-      spawnNextThought();
-    }, 3000);
-
-    const interval = window.setInterval(() => {
-      spawnNextThought();
-    }, 10000);
-
-    return () => {
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [act, isMusicPlaying, userQuotes, spawnStardust]);
 
   useEffect(() => {
     const onAudioError = () => setFeedback('audioError');
@@ -225,10 +175,7 @@ export default function App() {
   useEffect(() => {
     if (act !== 'warp') return;
     const timer = window.setTimeout(() => {
-      planetCoordsRef.current = { lon: 0.28, lat: 0.04 };
-      targetCoordsRef.current = { lon: 0.28, lat: 0.04 };
-      springVelocityRef.current = { lon: 0, lat: 0 };
-      joystickInputRef.current = { x: 0, y: 0 };
+      resetArrivalPosition();
       setSpiritPose('idle');
       setIsMusicPlaying(false);
       setHasRestedOnPlanet(false);
@@ -237,7 +184,7 @@ export default function App() {
       setAct('roaming');
     }, 1500);
     return () => window.clearTimeout(timer);
-  }, [act]);
+  }, [act, resetArrivalPosition]);
 
   useEffect(() => {
     setIsMessageReady(false);
@@ -317,7 +264,7 @@ export default function App() {
     // 1. 头顶弹出边缘柔和的云朵状白色气泡显示 4 秒
     triggerOverheadBubble(trimmed, false, 4000);
 
-    // 2. 加入背景飘出文字的循环队列并持久化至 localStorage
+    // Save the original text without mixing it into a planet's built-in cycle.
     const nextUserQuotes = [trimmed, ...userQuotes.filter((q) => q !== trimmed)].slice(0, 30);
     setUserQuotes(nextUserQuotes);
     try {
@@ -326,8 +273,6 @@ export default function App() {
       // Ignore storage error
     }
 
-    // 3. 立即在背景光晕中也生成一缕星尘飘起
-    spawnStardust(trimmed);
   };
 
   // 通过【🌀 传送门】切换体验另外 3 个星球
@@ -364,6 +309,21 @@ export default function App() {
     setAct('farewell');
   };
 
+  const handleVisitAnotherPlanet = () => {
+    // Farewell unmounted the transported planet frame and its camera. The
+    // accumulated movement values cannot seed that new frame as coordinates.
+    // Reset before mounting, including when the visitor cancels the picker.
+    resetArrivalPosition();
+    setIsNearListeningRock(false);
+    setIsNearPortal(false);
+    setSpiritPose('idle');
+    soundEngine.startPreludeAmbience();
+    soundEngine.liftPreludeForWarp();
+    soundEngine.playWarpTransition();
+    setAct('roaming');
+    setIsPortalModalOpen(true);
+  };
+
   // 点击 [ 重新开启漫游 ] 重置状态回到开场
   const handleRestartAll = () => {
     isRestingRef.current = false;
@@ -378,7 +338,6 @@ export default function App() {
     setQuizAnswers([]);
     setQuizStep(0);
     setVisitedPlanetIds([]);
-    setFloatingStardust([]);
     setFeedback(null);
     setOverheadBubble(null);
     setSpiritPose('idle');
@@ -427,9 +386,9 @@ export default function App() {
         textSecondary: '#7A6885',
         accentSoft: 'rgba(251, 207, 232, 0.65)',
         ...(act === 'intro' ? {
-          canvasBg: 'linear-gradient(165deg, #FFFEFC 0%, #FFF7FB 46%, #EFEDFF 100%)',
+          canvasBg: 'radial-gradient(ellipse at 15% 22%, #EDE5F34D 0%, transparent 57%), radial-gradient(ellipse at 28% 43%, #F8DBE94D 0%, transparent 60%), radial-gradient(ellipse at 76% 41%, #FBEBD247 0%, transparent 55%), radial-gradient(ellipse at 31% 65%, #DCEAF847 0%, transparent 58%), radial-gradient(ellipse at 75% 65%, #DFF0E940 0%, transparent 55%), linear-gradient(160deg, #FFFDFA 0%, #FFF9FC 50%, #F4F2FD 100%)',
           outerDesktopBg: 'radial-gradient(ellipse at 50% 48%, #DED6EF 0%, #C8C2D8 58%, #D2C8C5 100%)',
-          blob1: '#F8DEEF', blob2: '#FFF0CB', blob3: '#E8DDFB', blob4: '#DFEEFF',
+          blob1: '#F8E8F0', blob2: '#FBF1DE', blob3: '#EFEBF7', blob4: '#EAF1FA',
         } : {}),
       };
 
@@ -460,7 +419,6 @@ export default function App() {
       {/* Optional MP3 target. Configure PLANET_AUDIO_URLS in roamingData.ts. */}
       <audio onError={() => setFeedback('audioError')} id="brief-roaming-external-audio" preload="auto" className="hidden" />
       <audio id="beginning-music" src="/audio/beginning-music.mp3" preload="auto" className="hidden" />
-      <audio id="walking-footsteps" src="/audio/footsteps.mp3" preload="auto" className="hidden" />
       {/* Optional /audio/voice_en.mp3 and /audio/voice_zh.mp3 are configured in
           audio/introVoice.ts. No src is set while recordings are unavailable. */}
       <audio id="intro-voice-en" preload="none" className="hidden" />
@@ -563,14 +521,7 @@ export default function App() {
         {act === 'intro' && (
           <section className="intro-scene relative z-20 flex-1 flex flex-col items-center justify-between px-7 pt-6 pb-10">
             <div className="intro-title-slot text-center mt-4">
-              <h1 className="intro-title" lang="en" data-script="true" aria-label={copy.title}>
-                {copy.title.split(' ').map((word, index) => (
-                    <React.Fragment key={word}>
-                      <span className={`intro-title-line intro-title-line-${index + 1}`} aria-hidden="true"><span className="intro-title-capital">{word[0]}</span>{word.slice(1)}</span>
-                      {index < 2 ? ' ' : null}
-                    </React.Fragment>
-                  ))}
-              </h1>
+              <CoverTitle />
             </div>
 
             <div className="my-auto flex flex-col items-center">
@@ -693,26 +644,7 @@ export default function App() {
               className="planet-stage relative flex-1 min-h-[250px] flex flex-col items-center justify-center z-20 touch-none"
             >
               <div className="stardust-layer pointer-events-none" aria-hidden="true">
-                {floatingStardust.map((item) => (
-                  <div
-                    key={item.id}
-                    className="animate-stardust-float stardust-thought px-4 py-1.5 rounded-full"
-                    data-lane={item.lane}
-                    onAnimationEnd={() => setFloatingStardust(prev => prev.filter(quote => quote.id !== item.id))}
-                    style={
-                      {
-                        '--stardust-lane': item.lane,
-                        background:
-                          'radial-gradient(circle, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.08) 82%, transparent 100%)',
-                        boxShadow: '0 0 16px 3px rgba(255,255,255,0.12)',
-                      } as React.CSSProperties
-                    }
-                  >
-                    <p className="text-xs font-medium leading-[18px] text-center whitespace-pre-wrap break-words" style={{ color: currentColors.textPrimary }}>
-                      {item.builtinIndex === undefined ? item.text : <BilingualText className="bilingual-block" select={c => c.BUILTIN_STARDUST_QUOTES[item.builtinIndex!]} />}
-                    </p>
-                  </div>
-                ))}
+                <PlanetStarMessages planetId={planetId} active={!isHelpOpen && !isPortalModalOpen && !overheadBubble} />
               </div>
 
               <ThreePlanetStage
@@ -822,7 +754,7 @@ export default function App() {
               >
                 <BilingualText select={c => c.calm} />
               </button>
-              <button type="button" className="farewell-secondary" onClick={() => { soundEngine.startPreludeAmbience(); soundEngine.liftPreludeForWarp(); soundEngine.playWarpTransition(); setSpiritPose('idle'); setAct('roaming'); setIsPortalModalOpen(true); }}><BilingualText select={c => c.another} /> <span aria-hidden="true">→</span></button>
+              <button type="button" className="farewell-secondary" onClick={handleVisitAnotherPlanet}><BilingualText select={c => c.another} /> <span aria-hidden="true">→</span></button>
             </div>
           </section>
         )}

@@ -5,7 +5,7 @@ export type Language = 'en' | 'zh';
 const en = {
   "INTRO_COPY": {
     "welcome": "Take a few minutes for yourself. Leave the noise outside for a little while.",
-    "startButton": "Find Your Calm Zone"
+    "startButton": "Begin Your Little Escape"
   },
   "interlude": {
     "title": "A Moment to Tune In",
@@ -79,13 +79,6 @@ const en = {
         }
       ]
     }
-  ],
-  "BUILTIN_STARDUST_QUOTES": [
-    "That was a long meeting. Take a few minutes just for you.",
-    "You've worked hard today. Take a moment for a warm drink.",
-    "Take a deep breath. It's okay to let your mind wander.",
-    "With each note, the tangled thoughts slowly unwind.",
-    "Leave your worries beyond gravity. This moment is yours."
   ],
   "ROAMING_COPY": {
     "walkHint": "Follow the light to the Listening Stone. Tap Sit & Listen when you get close.",
@@ -227,7 +220,7 @@ export type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQue
 const zh: Copy = {
   "INTRO_COPY": {
     "welcome": "给自己几分钟，把外面的喧闹暂时留在门外。",
-    "startButton": "找到属于你的宁静空间"
+    "startButton": "开启短暂漫游"
   },
   "interlude": {
     "title": "先让声音轻轻靠近",
@@ -301,13 +294,6 @@ const zh: Copy = {
         }
       ]
     }
-  ],
-  "BUILTIN_STARDUST_QUOTES": [
-    "刚开完一个漫长的会，来这里躲 3 分钟。",
-    "今天的工作辛苦啦，等下记得去喝杯温水。",
-    "深呼吸，没什么大不了的，允许自己发呆五分钟。",
-    "在这里听着歌，感觉脑子里的线团慢慢解开了。",
-    "把烦恼留在引力场外，此刻只属于你自己。"
   ],
   "ROAMING_COPY": {
     "walkHint": "跟着柔光去找聆听石吧，走近后点「坐下听歌」。",

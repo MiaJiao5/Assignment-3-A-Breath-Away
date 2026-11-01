@@ -17,7 +17,7 @@ See package.json and bun.lock for the project's complete dependency inventory. D
 
 ## Fonts and visuals
 
-The landing title uses Pinyon Script by Nicole Fally / the PinyonScript Project Authors, distributed from the [Google Fonts repository](https://github.com/google/fonts/tree/main/ofl/pinyonscript) under the SIL Open Font License. The original font and its license are bundled in `public/fonts/` so the title does not rely on a remote font request. The previously used Ballet font by Omnibus-Type / Maximiliano Sproviero and its license remain in that directory.
+The landing title uses genuine Google Fonts [Allura Regular](https://github.com/google/fonts/tree/main/ofl/allura) by the Allura Project Authors (copyright 2010) at weight 400. The unmodified font and SIL Open Font License are bundled as `public/fonts/Allura-Regular.ttf` and `Allura-OFL.txt`. The face is preloaded and served locally; no generic cursive fallback or synthesized bold is used for the rendered title. Earlier Ballet, Tangerine and Pinyon fonts and licenses remain as unused historical assets.
 
 Section and popup headings use [Cormorant Garamond](https://github.com/google/fonts/tree/main/ofl/cormorantgaramond) by Christian Thalmann / the Cormorant Project Authors at Medium weight. Body text and controls use [Nunito Sans](https://github.com/google/fonts/tree/main/ofl/nunitosans) by the Nunito Sans Project Authors at Regular and Medium/SemiBold weights. Both original variable fonts and their SIL Open Font Licenses are bundled in `public/fonts/`. Noto Sans SC and Noto Serif SC are requested through Google Fonts as Chinese fallbacks, followed by local system fonts. The planet textures, background gradients, aura orb, headphone SVG, particles, and spirit visuals are produced by application code. No stock photography or third-party image asset is required.
 
@@ -36,6 +36,6 @@ The project owner also supplied the headphone-page recordings: `voice_en_kokoro.
 
 The owner-supplied `Begining music.mp3` is copied unchanged to `public/audio/beginning-music.mp3`. It fades in after the headphone-page confirmation at 70% media volume, accompanies the questionnaire, and fades out during the transition into the first planet.
 
-The owner also supplied `foot sound.mp3`, copied unchanged to `public/audio/footsteps.mp3`. It loops at media volume 0.8 during controlled walking on all four planets and stops when movement ends. It replaces the earlier procedurally synthesized footsteps.
+The owner previously supplied `foot sound.mp3`, preserved as the unused legacy file `public/audio/footsteps.mp3`. Current movement uses **Fluffy Little Footsteps**, original procedural Web Audio synthesis written for this project: sine-wave landings, generated filtered noise and airy puffs. No external audio API, downloaded sample or commercial footstep recording is used.
 
 The farewell companion is an original code-based SVG illustration with one continuous ivory cloud silhouette, independent waving and blinking groups, and subtle dimensional shading. It uses the current planet's existing background without altering the theme mapping.

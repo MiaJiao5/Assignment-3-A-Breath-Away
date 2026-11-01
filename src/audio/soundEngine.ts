@@ -1,6 +1,8 @@
 import { PLANETS, PlanetId } from '../data/roamingData';
 import type { Language } from '../i18n/translations';
 import { INTRO_VOICE_URLS } from './introVoice';
+import { FluffyFootsteps } from './fluffyFootsteps';
+import type { FluffyFoot } from '../animation/fluffyGait';
 
 export const MUSIC_FADE_SECONDS = { in: 2.8, out: 2.2 } as const;
 
@@ -114,6 +116,8 @@ class SoundEngine {
   private preludeGain: GainNode | null = null;
   private preludeNodes: AudioScheduledSourceNode[] = [];
   private musicGain: GainNode | null = null;
+  private musicAnalyser: AnalyserNode | null = null;
+  private musicSamples: Uint8Array<ArrayBuffer> | null = null;
   private mediaSources = new WeakMap<HTMLMediaElement, MediaElementAudioSourceNode>();
   private musicSession = 0;
   private musicCleanupTimer: number | null = null;
@@ -122,10 +126,7 @@ class SoundEngine {
   private beginningSession = 0;
   private beginningStop: (() => void) | null = null;
   private beginningGain: GainNode | null = null;
-  private footstepAudioEl: HTMLAudioElement | null = null;
-  private footstepPlaying = false;
-  private footstepSession = 0;
-  private footstepFailed = false;
+  private footstepSynth: FluffyFootsteps | null = null;
 
   private loopTimer: number | null = null;
   private arpeggioTimer: number | null = null;
@@ -477,47 +478,21 @@ class SoundEngine {
     }
   }
 
-  /** The owner's recording loops only for active, accepted walking movement. */
-  public setFootstepsMoving(moving: boolean): void {
-    if (!moving || this.isMuted || document.hidden) {
-      this.stopFootsteps();
-      return;
-    }
-    if (this.footstepPlaying || this.footstepFailed) return;
+  /** One original, short voice for an actual left/right animation contact. */
+  public playFluffyFootstep(foot: FluffyFoot, speed: number): boolean {
+    if (this.isMuted || document.hidden || this.ctx?.state !== 'running' || !this.masterGain) return false;
     try {
-      const audio = document.getElementById('walking-footsteps') as HTMLAudioElement | null;
-      if (!audio) return;
-      this.ensureContext();
-      if (!this.masterGain) return;
-      const session = ++this.footstepSession;
-      this.footstepAudioEl = audio;
-      this.footstepPlaying = true;
-      audio.loop = true;
-      audio.volume = .8;
-      audio.currentTime = 0;
-      this.mediaSource(audio).connect(this.masterGain);
-      audio.play().catch(() => {
-        if (session !== this.footstepSession) return;
-        this.footstepFailed = true;
-        this.stopFootsteps();
-      });
+      this.footstepSynth ??= new FluffyFootsteps(this.ctx, this.masterGain);
+      this.footstepSynth.play(foot, speed);
+      return true;
     } catch {
-      this.footstepFailed = true;
-      this.stopFootsteps();
+      // Decorative SFX may fail silently without interrupting music or controls.
+      return false;
     }
   }
 
   public stopFootsteps(): void {
-    if (!this.footstepPlaying && !this.footstepAudioEl) return;
-    this.footstepSession++;
-    this.footstepPlaying = false;
-    const audio = this.footstepAudioEl;
-    this.footstepAudioEl = null;
-    if (audio) {
-      audio.pause();
-      try { audio.currentTime = 0; } catch { /* Metadata may still be loading. */ }
-      this.mediaSources.get(audio)?.disconnect();
-    }
+    this.footstepSynth?.stop();
   }
 
   /** Short proximity chimes; the garden applies entry hysteresis and cooldowns. */
@@ -662,9 +637,16 @@ class SoundEngine {
     }
   }
 
-  /**
-   * 启动对应星球的治愈背景音乐循环（坐下听歌时调用）
-   */
+  /** Read the existing music bus without changing playback or mixing in SFX. */
+  public getPlanetMusicLevel(): number {
+    if (!this.isPlaying || this.isMuted || this.ctx?.state !== 'running' || !this.musicAnalyser || !this.musicSamples) return 0;
+    this.musicAnalyser.getByteTimeDomainData(this.musicSamples);
+    let energy = 0;
+    for (const sample of this.musicSamples) energy += ((sample - 128) / 128) ** 2;
+    return Math.min(1, Math.sqrt(energy / this.musicSamples.length) * 6);
+  }
+
+  /** Start the current planet's looping music when the companion sits down. */
   public startPlanetMusic(planetId: PlanetId): void {
     const ctx = this.ensureContext();
     this.stopPlanetMusicImmediate();
@@ -685,6 +667,12 @@ class SoundEngine {
     this.musicGain = ctx.createGain();
     this.musicGain.gain.setValueAtTime(0, ctx.currentTime);
     this.musicGain.connect(this.masterGain!);
+    this.musicAnalyser = ctx.createAnalyser();
+    this.musicAnalyser.fftSize = 256;
+    this.musicAnalyser.smoothingTimeConstant = .85;
+    this.musicSamples = new Uint8Array(this.musicAnalyser.fftSize);
+    // A read-only branch; the audible route and existing fades remain intact.
+    this.musicGain.connect(this.musicAnalyser);
 
     const planetConfig = PLANETS[planetId];
 
@@ -851,6 +839,7 @@ class SoundEngine {
 
   public setMuted(muted: boolean): void {
     this.isMuted = muted;
+    if (muted) this.stopFootsteps();
     if (this.ctx && this.masterGain) {
       const now = this.ctx.currentTime;
       this.masterGain.gain.cancelScheduledValues(now);
@@ -907,6 +896,9 @@ class SoundEngine {
       this.musicGain.disconnect();
       this.musicGain = null;
     }
+    this.musicAnalyser?.disconnect();
+    this.musicAnalyser = null;
+    this.musicSamples = null;
     this.cleanupNoiseNodes();
   }
 

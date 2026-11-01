@@ -3,9 +3,11 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const { pathToFileURL } = require('node:url');
 const path = require('node:path');
 const { approach, installNavigation, completeQuiz } = require('./navigation.cjs');
+const { installFootstepCapture } = require('./footstep-fixture.cjs');
 
 (async () => {
   const { PLANETS } = await import(pathToFileURL(path.resolve('src/data/roamingData.ts')));
+  const { STAR_MESSAGES } = await import(pathToFileURL(path.resolve('src/data/starMessages.ts')));
   const { translations: {en,zh} } = await import(pathToFileURL(path.resolve('src/i18n/translations.ts')));
   const expected = {
     OMEGA_01: { angles: [25,80,145,210,275,330], stone: 55, portal: 180 },
@@ -29,34 +31,21 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
         planet=nextPlanet;exit=nextExit;
       }).observe(document.body,{childList:true,subtree:true});
     });
-    await b('Find Your Calm Zone').click(); await b("I'm Ready →").click();
+    await b('Begin Your Little Escape').click(); await b("I'm Ready →").click();
     await completeQuiz(page);
     await b(/^Got It,/).waitFor();
-    await page.evaluate(() => {
-      window.__footsteps = [];
-      const audio = document.getElementById('walking-footsteps');
-      audio.addEventListener('play', () => window.__footsteps.push({ id: window.__navScene?.getObjectByName('interactive-garden')?.userData.planetId, volume: audio.volume, loop: audio.loop, time: performance.now() }));
-    });
+    await installFootstepCapture(page);
     await page.keyboard.down('ArrowRight'); await page.waitForTimeout(450); await page.keyboard.up('ArrowRight');
     assert.equal(await page.evaluate(() => window.__footsteps.length), 0, 'Instructions block walking sounds as well as movement');
     await b(/^Got It,/).click();
     await installNavigation(page);
     await page.keyboard.down('ArrowLeft');
-    await page.waitForFunction(() => { const audio = document.getElementById('walking-footsteps'); return !audio.paused && audio.currentTime > 0 && Number.isFinite(audio.duration); });
-    const loopStart = await page.evaluate(() => {
-      const audio = document.getElementById('walking-footsteps');
-      audio.currentTime = audio.duration - .08;
-      return { starts: window.__footsteps.length, duration: audio.duration };
-    });
-    await page.waitForTimeout(350);
-    const looped = await page.evaluate(() => { const audio = document.getElementById('walking-footsteps'); return { paused: audio.paused, time: audio.currentTime, starts: window.__footsteps.length, volume: audio.volume, loop: audio.loop }; });
-    assert.equal(looped.paused, false); assert.equal(looped.volume, .8); assert.equal(looped.loop, true);
-    assert.ok(looped.time < loopStart.duration - .08, 'Recording wraps naturally at the end while walking');
-    assert.equal(looped.starts, loopStart.starts, 'Continuous walking never restarts the recording each frame');
+    await page.waitForFunction(() => window.__footsteps.length >= 2);
     await b('中文').click(); await b('EN').click();
-    assert.equal(await page.evaluate(() => window.__footsteps.length), loopStart.starts, 'Language switching does not restart the walking loop');
     await page.keyboard.up('ArrowLeft');
-    assert.equal(await page.locator('#walking-footsteps').evaluate(el => el.paused), true, 'Releasing the direction stops the loop immediately');
+    const released = await page.evaluate(() => window.__footsteps.length);
+    await page.waitForTimeout(350);
+    assert.equal(await page.evaluate(() => window.__footsteps.length), released, 'Release stops new contacts immediately');
     const seen = [], types = new Set();
     for (let visit = 0; visit < 4; visit++) {
       await page.waitForFunction(() => window.__navScene.getObjectByName('interactive-garden').userData.pendingTextures === 0);
@@ -78,8 +67,18 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       for (const type of new Set(snapshot.props.map(p => p.type))) { assert.ok(!types.has(type), 'No plant silhouette is reused between biomes'); types.add(type); }
       assert.ok(Math.abs(snapshot.stone - expected[snapshot.id].stone) < .00001);
       assert.ok(Math.abs(snapshot.portal - expected[snapshot.id].portal) < .00001);
+      await page.locator('.stardust-thought').waitFor();
+      const thought = await page.locator('.stardust-thought').elementHandle();
+      assert.equal(await thought.getAttribute('data-planet-id'), snapshot.id);
+      const messageId = await thought.getAttribute('data-message-id');
+      const message = STAR_MESSAGES[snapshot.id].find(m => m.id === messageId);
+      assert.ok(message, 'The actual scene displays only its own messages');
+      assert.equal(await thought.$eval('.bilingual-current', el => el.textContent), message.en);
       await page.evaluate(() => { window.__gardenBeforeLanguage = window.__navScene.getObjectByName('interactive-garden'); });
-      await b('中文').click(); await b('EN').click();
+      await b('中文').click();
+      assert.equal(await thought.$eval('.bilingual-current', el => el.textContent), message.zh);
+      await b('EN').click();
+      assert.equal(await thought.$eval('.bilingual-current', el => el.textContent), message.en);
       assert.equal(await page.evaluate(() => window.__gardenBeforeLanguage === window.__navScene.getObjectByName('interactive-garden')), true, 'Language switching preserves the biome and interaction state');
       await page.screenshot({ path: `tests/biome-${snapshot.id}.png` });
       // Visit the real portal first, before resting on this particular planet.
@@ -95,7 +94,7 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       const stoppedSteps = await page.evaluate(() => window.__footsteps.length);
       await page.waitForTimeout(650);
       assert.equal(await page.evaluate(() => window.__footsteps.length), stoppedSteps, 'Footsteps stop when actual movement stops');
-      assert.equal(await page.locator('#walking-footsteps').evaluate(el => el.paused), true);
+      assert.equal(await page.evaluate(() => window.__footstepEngine.footstepSynth?.voices.size || 0), 0);
       assert.equal(await page.locator('.rest-action').isDisabled(), true, 'Locked portal cannot be activated with keyboard or pointer');
       assert.equal(await page.evaluate(() => window.__navScene.getObjectByName('listening-beacon').parent.name), 'listening-stone', 'Guidance still points to the stone before resting');
       await b('中文').click();
@@ -109,8 +108,22 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
       const seatedSteps = await page.evaluate(() => window.__footsteps.length);
       await page.keyboard.down('ArrowRight'); await page.waitForTimeout(700); await page.keyboard.up('ArrowRight');
       assert.equal(await page.evaluate(() => window.__footsteps.length), seatedSteps, 'Sitting remains silent even if a direction is pressed');
-      assert.equal(await page.locator('#walking-footsteps').evaluate(el => el.paused), true);
+      assert.equal(await page.evaluate(() => window.__footstepEngine.footstepSynth?.voices.size || 0), 0);
       assert.equal(await b(en.ROAMING_COPY.leaveButton).count(),visit===0?0:1,'Leave stays unlocked on later planets, including while seated');
+      assert.equal(await page.locator('.atmosphere-meteors[data-listening="true"] i').count(), 4, 'Every listening planet has a sparse meteor shower');
+      await page.emulateMedia({ reducedMotion: 'no-preference' });
+      const meteorMotion = await page.locator('.atmosphere-meteors i').evaluateAll(elements => elements.map(el => {
+        const animation = el.getAnimations()[0], timing = animation.effect.getTiming();
+        animation.pause(); animation.currentTime = Number(timing.duration) * .08 + timing.delay;
+        const from = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+        animation.currentTime = Number(timing.duration) * .18 + timing.delay;
+        const to = new DOMMatrixReadOnly(getComputedStyle(el).transform);
+        return [to.m41 - from.m41, to.m42 - from.m42, Number(getComputedStyle(el).opacity)];
+      }));
+      meteorMotion.forEach(([x, y, opacity]) => assert.ok(x > 0 && y > 0 && opacity > .1, 'Visible streaks fall from upper-left to lower-right'));
+      await page.screenshot({ path: `tests/listening-meteors-${snapshot.id}.png` });
+      await page.emulateMedia({ reducedMotion: 'reduce' });
+      assert.equal(await page.locator('.atmosphere-meteors').isVisible(), false, 'Reduced motion hides the shower');
       await b('[ Stand Up ]').click();
       if(visit===0){
         await page.getByRole('dialog',{name:en.exitGuide.title}).waitFor();
@@ -159,7 +172,12 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
     assert.equal(seen.length, 4); assert.equal(types.size, 12);
     const steps = await page.evaluate(() => window.__footsteps);
     assert.equal(new Set(steps.map(step => step.id)).size, 4, 'All four planets have movement sounds');
-    assert.ok(steps.every(step => step.volume === .8 && step.loop), 'Every planet uses the supplied loop at volume 0.8');
+    steps.forEach((step, i) => {
+      assert.ok(step.speed > .035 && (step.foot === 'left' || step.foot === 'right'));
+      assert.ok(Math.abs(step.leftY - .045) < 1e-6 && Math.abs(step.rightY - .045) < 1e-6, 'Audible events coincide with foot contacts');
+      if (i) assert.notEqual(step.foot, steps[i - 1].foot, 'Feet alternate through language changes and planet transfers');
+    });
+    assert.equal(await page.locator('#walking-footsteps').count(), 0, 'No recording loop remains');
     assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'Each guide opens once across all four planets and repeated rests');
     await b(en.ROAMING_COPY.leaveButton).click();await b(en.another).click();
     await page.locator('.portal-discovery-overlay[data-phase="complete"]').waitFor();
@@ -168,6 +186,6 @@ const { approach, installNavigation, completeQuiz } = require('./navigation.cjs'
     await b(en.ROAMING_COPY.leaveButton).waitFor();await b(en.stay).click();
     assert.deepEqual(await page.evaluate(()=>window.__helpOpenCounts),{planet:1,exit:1},'A new planet circuit does not reset guidance or exit access');
     assert.deepEqual(errors, []);
-    console.log('PASS: supplied footsteps MP3 loops at 0.8 on all four planets, natural loop wrap and language continuity, immediate stop on release/rest/panels, portal locks and safe transfers.');
+    console.log('PASS: original alternating foot-contact synthesis on all four planets, shared animation timing, language continuity, release/rest/panel silence, portal locks and safe transfers.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

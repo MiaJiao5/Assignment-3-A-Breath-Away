@@ -401,7 +401,7 @@
   animation: blobMusicFlow4 7.8s ease-in-out infinite;
 }
 
-/* Slow left-to-right stardust thoughts */
+/* One planet-owned thought floats through the reserved sky at a time. */
 .stardust-layer {
   position: absolute;
   inset: 0 0 auto;
@@ -410,27 +410,36 @@
   height: 202px;
   z-index: 25;
   overflow: visible;
-  /* Clip horizontal drift only; long thoughts keep their complete height. */
-  clip-path: inset(-24px 0 -24px 0);
+  clip-path: inset(-32px 0 -24px 0);
 }
 .stardust-thought {
   position: absolute;
-  top: calc(10px + var(--stardust-lane) * 98px);
-  left: 0;
-  width: max-content;
-  max-width: min(320px, calc(100% - 24px));
+  top: calc(30px + var(--star-height, .5) * 18px);
+  left: calc(12px + (100% - min(320px, calc(100% - 24px)) - 24px) * var(--star-position, .5));
+  width: min(320px, calc(100% - 24px));
+  padding: 6px 16px;
+  background: radial-gradient(ellipse, rgba(255,255,255,.08), rgba(255,255,255,.02) 75%, transparent);
+  text-shadow: 0 0 12px rgba(255,255,255,.2);
+  box-shadow: 0 0 18px rgba(255,255,255,.04);
+  overflow-wrap: anywhere;
 }
 @media (max-height: 740px) {
   .stardust-layer { height: 104px; }
-  .stardust-thought[data-lane="1"] { display: none; }
+  .stardust-thought { top: calc(28px + var(--star-height, .5) * 6px); }
 }
-@keyframes stardustDriftAcross {
-  0% { opacity: 0; transform: translate3d(-40%, 0, 0); filter: blur(4px); }
-  18% { opacity: .65; filter: blur(0); }
-  72% { opacity: .65; filter: blur(0); }
-  100% { opacity: 0; transform: translate3d(calc(min(100vw, 414px) - 32px), 0, 0); filter: blur(3px); }
+@keyframes stardustFloatUp {
+  0% { opacity: 0; transform: translate3d(0, 0, 0); }
+  18%, 75% { opacity: .72; }
+  100% { opacity: 0; transform: translate3d(var(--star-drift), calc(-1 * var(--star-rise)), 0); }
 }
-.animate-stardust-float { animation: stardustDriftAcross 24s linear forwards; }
+@keyframes stardustFade {
+  0%, 100% { opacity: 0; }
+  18%, 75% { opacity: .72; }
+}
+.animate-stardust-float { animation: stardustFloatUp var(--star-life, 7500ms) linear forwards; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-stardust-float { animation-name: stardustFade; }
+}
 
 .planet-guide-headphones {
   padding: .7rem .85rem;
@@ -768,6 +777,16 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   animation: atmosphereMeteor 28s linear -20s infinite;
 }
 .atmosphere-meteors i:nth-child(2) { top: 28%; left: 41%; width: 54px; animation-duration: 33s; animation-delay: -6s; }
+.atmosphere-meteors[data-listening="true"] {
+  bottom: 35%;
+  mask-image: linear-gradient(transparent, #000 8%, #000 78%, transparent);
+}
+.atmosphere-meteors[data-listening="true"] i {
+  width: var(--meteor-width); height: 1.3px;
+  background: linear-gradient(90deg, transparent, var(--atmosphere-light) 76%, #fff9f0);
+  box-shadow: 0 0 6px var(--atmosphere-light);
+  animation: listeningMeteor var(--meteor-duration) linear var(--meteor-delay) infinite both;
+}
 @keyframes atmosphereFarDrift { from { transform: translate3d(-12px, 9px, 0) rotate(-6deg); } to { transform: translate3d(20px, -14px, 0) rotate(7deg); } }
 @keyframes atmosphereNearDrift { from { transform: translate3d(14px, 0, 0) scale(.96); } to { transform: translate3d(-17px, -12px, 0) scale(1.08); } }
 @keyframes atmosphereDust { from { opacity: .14; transform: translate3d(-5px, 14px, 0); } to { opacity: .42; transform: translate3d(9px, -19px, 0); } }
@@ -776,6 +795,12 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   0%,78% { opacity: 0; transform: translate3d(-18px, -8px, 0) rotate(24deg); }
   82% { opacity: .55; }
   91%,100% { opacity: 0; transform: translate3d(154px, 72px, 0) rotate(24deg); }
+}
+@keyframes listeningMeteor {
+  0% { opacity: 0; transform: translate3d(-55px, -35px, 0) rotate(32deg); }
+  5% { opacity: .48; }
+  19% { opacity: .42; }
+  27%, 100% { opacity: 0; transform: translate3d(245px, 152px, 0) rotate(32deg); }
 }
 @media (max-height: 620px) { .planet-atmosphere .atmosphere-dust i:nth-child(n+9) { display: none; } }
 @media (prefers-reduced-motion: reduce) {
@@ -927,14 +952,14 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   padding: 0;
 }
 @font-face {
-  font-family: 'Tangerine';
-  src: url('/fonts/Tangerine-Bold.ttf') format('truetype');
+  font-family: 'Allura';
+  src: url('/fonts/Allura-Regular.ttf') format('truetype');
   font-style: normal;
-  font-weight: 700;
+  font-weight: 400;
   font-display: swap;
 }
-/* Preserve the old title's flow height: the orb and button keep their layout.
-   Only the lettering occupies the larger, layered editorial composition. */
+/* Keep calligraphy outside flex layout; the cloud and bottom action have
+   independent positions so long flourishes never move the controls. */
 .intro-title-slot {
   position: relative;
   width: 100%;
@@ -952,49 +977,21 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   pointer-events: none;
 }
 .intro-title[data-script="true"] {
-  --script-unit: min(132px, calc((min(100vw, 414px) - 64px) / 2.6), calc((min(100dvh, 860px) - 180px) / 3.8));
-  top: clamp(-28px, calc(58px - 10vh), -8px);
-  height: calc(var(--script-unit) * 4.5);
-  font-family: 'Tangerine', 'Snell Roundhand', 'Segoe Script', cursive;
-  font-weight: 700;
+  top: 0;
+  width: 100%;
+  height: min(calc((min(100vw, 414px) - 56px) * 1.23334), calc(100dvh - 250px));
+  display: grid;
+  justify-items: center;
+  font-family: 'Allura', cursive;
+  font-weight: 400;
+  font-style: normal;
   font-kerning: normal;
+  font-optical-sizing: auto;
   font-synthesis: none;
   letter-spacing: 0;
-  text-align: left;
 }
-.intro-title-line {
-  position: absolute;
-  display: block;
-  width: max-content;
-  padding: .15em .2em .45em .12em;
-  line-height: .9;
-  white-space: nowrap;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  filter: none;
-}
-.intro-title-line-1 {
-  top: 0;
-  left: calc(var(--script-unit) * .1);
-  font-size: calc(var(--script-unit) * 1.1);
-  background-image: linear-gradient(110deg, #B781CB 10%, #C58CD5 94%);
-}
-.intro-title-line-2 {
-  top: calc(var(--script-unit) * .9);
-  left: calc(var(--script-unit) * .04);
-  font-size: var(--script-unit);
-  background-image: linear-gradient(105deg, #C68BCD 0%, #ED95CA 30%, #F7AE9B 62%, #FFD271 96%);
-}
-.intro-title-line-3 {
-  top: calc(var(--script-unit) * 1.85);
-  left: calc(var(--script-unit) * -.02);
-  padding-right: .12em;
-  font-size: calc(var(--script-unit) * 1.06);
-  background-image: linear-gradient(110deg, #B788EA 8%, #93B1F9 38%, #77C7E9 68%, #8AD7B0 98%);
-}
-.intro-title-line-2 .intro-title-capital { font-size: 1.5em; }
-.intro-title-line-3 .intro-title-capital { font-size: 1.2em; }
+.intro-title-composition { display: block; width: auto; height: 100%; max-width: 100%; overflow: visible; }
+.intro-title-line { font-family: inherit; font-weight: 400; font-style: normal; font-synthesis: none; stroke: none; }
 .intro-copy { position: relative; isolation: isolate; }
 .intro-copy::before {
   content: ''; position: absolute; inset: -18px; z-index: -1;
@@ -1102,22 +1099,24 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .aura-sky { bottom: 4%; left: 0; background: #9ab8e4; }
 /* Independent, staggered color currents keep the cover softly alive without
    moving the title, button, or the aura's layout box. */
+.roaming-mobile-frame > .intro-scene { overflow: visible; }
 .intro-scene > .my-auto { transform: translateY(clamp(-85px, -10vh, -50px)); }
-.intro-scene .breathing-aura { width: clamp(260px, 82vw, 340px); animation: coverAuraBreath 8s ease-in-out infinite; }
-.intro-scene .aura-fluid { animation-duration: 20s; filter: saturate(1.16); }
+.intro-scene .breathing-aura { width: clamp(280px, 86vw, 360px); animation: coverAuraBreath 14s ease-in-out infinite; }
+.intro-scene .aura-fluid { animation-duration: 28s; filter: none; }
+.intro-scene .aura-fluid::before { content: ""; position: absolute; inset: -14%; background: radial-gradient(ellipse at 25% 30%, #F3C3E854, transparent 60%), radial-gradient(ellipse at 75% 32%, #FFF0B84D, transparent 60%), radial-gradient(ellipse at 26% 75%, #BDD7FF54, transparent 62%), radial-gradient(ellipse at 76% 75%, #C5EED954, transparent 62%); filter: blur(70px); }
 .intro-scene .aura-fluid span {
-  width: 62%; height: 64%; filter: blur(34px); opacity: .85;
+  width: 66%; height: 70%; filter: blur(40px); opacity: .85;
   animation: coverAuraFlow var(--flow-duration, 14s) ease-in-out infinite;
   animation-delay: var(--flow-delay, 0s);
   will-change: transform;
 }
-.intro-scene .aura-peach { background: #F5A0D5; left: -5%; top: -4%; z-index: 2; --flow-x: 22px; --flow-y: 15px; --flow-turn: 12deg; --flow-duration: 13s; --flow-delay: -3s; }
-.intro-scene .aura-sun { background: #FFE27A; right: -5%; top: 2%; z-index: 3; --flow-x: -18px; --flow-y: 24px; --flow-turn: -14deg; --flow-duration: 16s; --flow-delay: -8s; }
-.intro-scene .aura-mint { background: #9AE4C2; right: -6%; bottom: -4%; z-index: 1; --flow-x: -24px; --flow-y: -17px; --flow-turn: 10deg; --flow-duration: 15s; --flow-delay: -5s; }
-.intro-scene .aura-sky { background: #8DC9FF; left: -4%; bottom: -8%; z-index: 0; --flow-x: 19px; --flow-y: -22px; --flow-turn: -12deg; --flow-duration: 18s; --flow-delay: -11s; }
+.intro-scene .aura-peach { background: radial-gradient(ellipse, #EFABE3 0%, #F4C7E9 35%, transparent 76%); left: -5%; top: -3%; z-index: 2; --flow-x: 22px; --flow-y: 15px; --flow-turn: 12deg; --flow-duration: 13s; --flow-delay: -3s; }
+.intro-scene .aura-sun { background: radial-gradient(ellipse, #FFF0AE 0%, #FFF3CD 38%, transparent 77%); opacity: .72; filter: blur(48px); right: -5%; top: 0; z-index: 3; --flow-x: -18px; --flow-y: 24px; --flow-turn: -14deg; --flow-duration: 16s; --flow-delay: -8s; }
+.intro-scene .aura-mint { background: radial-gradient(ellipse, #A1E8D0 0%, #D0EEDC 38%, transparent 76%); right: -4%; bottom: 0; z-index: 1; --flow-x: -24px; --flow-y: -17px; --flow-turn: 10deg; --flow-duration: 15s; --flow-delay: -5s; }
+.intro-scene .aura-sky { background: radial-gradient(ellipse, #9FBBFF 0%, #D0E1FC 38%, transparent 76%); left: -5%; bottom: -3%; z-index: 0; --flow-x: 19px; --flow-y: -22px; --flow-turn: -12deg; --flow-duration: 18s; --flow-delay: -11s; }
 @keyframes coverAuraBreath {
-  0%,100% { transform: scale(.94); opacity: .88; }
-  50% { transform: scale(1.09); opacity: 1; }
+  0%,100% { transform: scale(.98); opacity: .88; }
+  50% { transform: scale(1.035); opacity: 1; }
 }
 @keyframes coverAuraFlow {
   0%,100% { transform: translate3d(0, 0, 0) rotate(0) scale(.97); }

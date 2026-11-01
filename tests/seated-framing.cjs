@@ -13,7 +13,7 @@ const { completeQuiz } = require('./navigation.cjs');
     page.on('pageerror', error => errors.push(error.message));
     const button = name => page.getByRole('button', { name, exact: true });
     await page.goto(process.env.APP_URL || 'http://localhost:3000');
-    await button('Find Your Calm Zone').click();
+    await button('Begin Your Little Escape').click();
     await button("I'm Ready →").click();
     await completeQuiz(page);
     await page.locator('canvas').waitFor();

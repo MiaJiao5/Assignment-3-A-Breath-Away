@@ -1,66 +1,35 @@
 import type { FluffyFoot } from '../animation/fluffyGait';
+import { createFluffyFootstepSamples, FLUFFY_FOOTSTEP_GAIN } from './fluffyFootstepSample';
 
 /** Fluffy Little Footsteps: original synthesis, with no recordings or loops. */
 export class FluffyFootsteps {
-  private readonly fabric: AudioBuffer;
-  private readonly air: AudioBuffer;
+  private readonly sample: AudioBuffer;
   private readonly voices = new Set<{ gain: GainNode; sources: AudioScheduledSourceNode[]; stopping: boolean }>();
 
   constructor(private readonly ctx: BaseAudioContext, private readonly output: AudioNode) {
-    this.fabric = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * .6), ctx.sampleRate);
-    this.air = ctx.createBuffer(1, this.fabric.length, ctx.sampleRate);
-    const fabric = this.fabric.getChannelData(0), air = this.air.getChannelData(0);
-    let soft = 0;
-    for (let i = 0; i < fabric.length; i++) {
-      soft = soft * .96 + (Math.random() * 2 - 1) * .04;
-      fabric[i] = soft * 3;
-      air[i] = Math.random() * 2 - 1;
-    }
+    const samples = createFluffyFootstepSamples(ctx.sampleRate);
+    this.sample = ctx.createBuffer(1, samples.length, ctx.sampleRate);
+    this.sample.getChannelData(0).set(samples);
   }
 
   // The optional time supports OfflineAudioContext previews; the application
   // always plays immediately from a rendered foot-contact event.
   play(foot: FluffyFoot, speed: number, when = this.ctx.currentTime): void {
     const ctx = this.ctx;
-    const duration = .1 + Math.random() * .025;
+    const rate = (foot === 'left' ? 1.012 : .988) * (.985 + Math.random() * .03);
+    const duration = this.sample.duration / rate;
     const voiceGain = ctx.createGain();
-    voiceGain.gain.value = .26 * (.65 + .25 * Math.min(1, Math.max(0, speed) / 2.1)) * (.92 + Math.random() * .16);
+    voiceGain.gain.value = FLUFFY_FOOTSTEP_GAIN * (.65 + .25 * Math.min(1, Math.max(0, speed) / 2.1)) * (.94 + Math.random() * .12);
     const pan = ctx.createStereoPanner();
     pan.pan.value = (foot === 'left' ? -.12 : .12) + (Math.random() - .5) * .05;
     voiceGain.connect(pan); pan.connect(this.output);
     const nodes: AudioNode[] = [voiceGain, pan];
-    const envelope = (peak: number, attack: number) => {
-      const gain = ctx.createGain();
-      // Start silent before the scheduled attack too. Fractional start times
-      // can otherwise expose a single sample at the default gain of one.
-      gain.gain.value = 0;
-      gain.gain.setValueAtTime(0, when);
-      gain.gain.linearRampToValueAtTime(peak, when + attack);
-      gain.gain.exponentialRampToValueAtTime(.0001, when + duration - .012);
-      gain.gain.linearRampToValueAtTime(0, when + duration);
-      gain.connect(voiceGain); nodes.push(gain);
-      return gain;
-    };
-    const thump = ctx.createOscillator();
-    thump.type = 'sine';
-    const pitch = (foot === 'left' ? 152 : 146) * (.97 + Math.random() * .06);
-    thump.frequency.setValueAtTime(pitch, when);
-    thump.frequency.exponentialRampToValueAtTime(pitch * .48, when + duration * .85);
-    thump.connect(envelope(.085, .008));
-
-    const rustle = ctx.createBufferSource();
-    rustle.buffer = this.fabric;
-    const softFilter = ctx.createBiquadFilter();
-    softFilter.type = 'lowpass'; softFilter.frequency.value = 600 + Math.random() * 220; softFilter.Q.value = .55;
-    rustle.connect(softFilter); softFilter.connect(envelope(.025, .01));
-
-    const puff = ctx.createBufferSource();
-    puff.buffer = this.air;
-    const airFilter = ctx.createBiquadFilter();
-    airFilter.type = 'bandpass'; airFilter.frequency.value = 950 + Math.random() * 250; airFilter.Q.value = .65;
-    puff.connect(airFilter); airFilter.connect(envelope(.012, .014));
-    nodes.push(thump, rustle, puff, softFilter, airFilter);
-    const sources: AudioScheduledSourceNode[] = [thump, rustle, puff];
+    const step = ctx.createBufferSource();
+    step.buffer = this.sample;
+    step.playbackRate.value = rate;
+    step.connect(voiceGain);
+    nodes.push(step);
+    const sources: AudioScheduledSourceNode[] = [step];
     const voice = { gain: voiceGain, sources, stopping: false };
     this.voices.add(voice);
     const cleanup = () => {
@@ -74,10 +43,8 @@ export class FluffyFootsteps {
         cleanup();
       };
     }
-    thump.start(when);
-    rustle.start(when, Math.random() * (this.fabric.duration - duration));
-    puff.start(when, Math.random() * (this.air.duration - duration));
-    sources.forEach(source => source.stop(when + duration));
+    step.start(when);
+    step.stop(when + duration);
   }
 
   stop(): void {

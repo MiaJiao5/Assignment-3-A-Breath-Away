@@ -3,6 +3,12 @@ import type { QuizQuestion } from '../data/roamingData';
 export type Language = 'en' | 'zh';
 
 const en = {
+  "bubbleShapes": {
+    "label": "Choose Your Bubble",
+    "cloud": "Cloud",
+    "circle": "Circle",
+    "rounded": "Rounded"
+  },
   "INTRO_COPY": {
     "welcome": "Take a few minutes for yourself. Leave the noise outside for a little while.",
     "startButton": "Begin Your Little Escape"
@@ -218,6 +224,12 @@ const en = {
 export type Copy = Omit<typeof en, 'QUIZ_QUESTIONS'> & { QUIZ_QUESTIONS: QuizQuestion[] };
 
 const zh: Copy = {
+  "bubbleShapes": {
+    "label": "选一朵心情气泡",
+    "cloud": "云朵",
+    "circle": "圆形",
+    "rounded": "圆角"
+  },
   "INTRO_COPY": {
     "welcome": "给自己几分钟，把外面的喧闹暂时留在门外。",
     "startButton": "开启短暂漫游"

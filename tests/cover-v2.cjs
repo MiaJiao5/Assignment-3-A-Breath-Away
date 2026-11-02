@@ -40,13 +40,16 @@ const { translations: { en, zh } } = require('../src/i18n/translations.ts');
               weight: style.fontWeight, stroke: style.stroke, synthesis: style.fontSynthesis };
           }), view: { x: view.x, y: view.y, width: view.width, height: view.height } };
       });
-      assert.ok(bounds.box.bottom < bounds.button.top - 20, 'Title keeps its breathing space above the unchanged CTA');
+      assert.ok(bounds.box.bottom <= bounds.button.top - 10, 'Title keeps breathing space above the raised CTA');
+      assert.ok(bounds.button.left >= 0 && bounds.button.right <= width && bounds.button.bottom <= height - 12,
+        'The responsive cover action remains within the safe visible viewport');
       for (const line of bounds.lines) {
         assert.ok(line.x >= bounds.view.x && line.right <= bounds.view.x + bounds.view.width && line.y >= bounds.view.y && line.bottom <= bounds.view.y + bounds.view.height, `Complete flourishes fit inside the SVG: ${JSON.stringify(line)}`);
         assert.equal(line.weight, '400'); assert.equal(line.stroke, 'none'); assert.equal(line.synthesis, 'none');
       }
       if (width === 390 && height === 844) {
-        assert.deepEqual([bounds.button.x, bounds.button.y, bounds.button.width, bounds.button.height], [40,749.5,310,54.5], 'Original button size and position are preserved');
+        assert.ok(bounds.button.y < 739.5, 'The cover action is raised from its previous y749.5 position');
+        assert.equal(bounds.button.width, 310, 'The original oval action width is preserved');
       }
       await page.screenshot({ path: `tests/cover-v2-en-${width}-${height}.png` });
       await page.getByRole('button', { name: '中文', exact: true }).click();
@@ -61,6 +64,6 @@ const { translations: { en, zh } } = require('../src/i18n/translations.ts');
     await page.getByRole('button', { name: en.INTRO_COPY.startButton, exact: true }).click();
     await page.locator('.interlude-scene').waitFor();
     assert.deepEqual(errors, []);
-    console.log('PASS: verified real Allura Regular glyphs, shared SVG paint, complete flourishes at five viewports, unchanged CTA geometry, bilingual behavior and cover navigation.');
+    console.log('PASS: verified real Allura Regular glyphs, shared SVG paint, complete flourishes at five viewports, responsive raised CTA, bilingual geometry and cover navigation.');
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

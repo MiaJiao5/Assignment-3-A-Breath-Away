@@ -6,12 +6,16 @@ import { PLANETS, PlanetId, surfaceCoordinates } from '../data/roamingData';
 import { OverheadBubbleData, SpiritPose } from './FluffySpirit';
 import { createPlanetGarden } from './PlanetBiomeGarden';
 import { BilingualText } from '../i18n/BilingualText';
+import { ReleasedMessageBubble } from './ReleasedMessageBubble';
 import { soundEngine } from '../audio/soundEngine';
 import { advanceFluffyGait, FLUFFY_STEP_DISTANCE, MIN_GAIT_SPEED, type FluffyFoot } from '../animation/fluffyGait';
+import { createPlanetSurface, type PlanetSurface } from '../geometry/planetSurface';
+import { createPlanetSurfaceMaps } from './planetSurfaceMaterial';
+import { createScreenSurfaceMovement } from '../animation/surfaceMovement';
 
 export interface JoystickVector {
   x: number; // -1 (left) to +1 (right)
-  y: number; // -1 (up/forward) to +1 (down/backward)
+  y: number; // -1 (up on screen) to +1 (down on screen)
 }
 
 interface ThreePlanetStageProps {
@@ -45,66 +49,7 @@ const CAMERA_FRAMING = {
   minimumRestingDistance: 3.8,
   response: 1.8,
 };
-
-/**
- * 生成柔焦绘本彩铅颗粒感的星球程序化贴图
- */
-function createPlanetTexture(
-  planetId: PlanetId,
-  maxAnisotropy: number
-): THREE.CanvasTexture {
-  const cfg = PLANETS[planetId].colors;
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  // 1. 柔和基底渐变
-  const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
-  grad.addColorStop(0, cfg.planetCore);
-  grad.addColorStop(0.5, cfg.planetMid);
-  grad.addColorStop(1, cfg.planetEdge);
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  // 2. 喷枪柔焦色块晕染斑点
-  const blobs = [
-    { x: 110, y: 80, r: 95, color: cfg.blob1 },
-    { x: 340, y: 150, r: 110, color: cfg.blob2 },
-    { x: 230, y: 65, r: 85, color: cfg.blob3 },
-    { x: 420, y: 75, r: 90, color: cfg.blob4 },
-    { x: 75, y: 185, r: 85, color: cfg.blob3 },
-  ];
-
-  blobs.forEach((b) => {
-    ctx.globalAlpha = .28;
-    const rad = ctx.createRadialGradient(b.x, b.y, 4, b.x, b.y, b.r);
-    rad.addColorStop(0, b.color);
-    rad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = rad;
-    ctx.beginPath();
-    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
-
-  // 3. 细腻彩铅颗粒肌理
-  for (let i = 0; i < 14000; i++) {
-    const x = Math.random() * canvas.width;
-    const y = Math.random() * canvas.height;
-    const alpha = Math.random() * 0.16;
-    ctx.fillStyle = i % 2 === 0 ? `rgba(255,255,255,${alpha})` : `rgba(80,65,95,${alpha * 0.6})`;
-    ctx.fillRect(x, y, 1.5, 1.5);
-  }
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.anisotropy = maxAnisotropy;
-  texture.needsUpdate = true;
-  return texture;
-}
+const VERTICAL_MOVEMENT_SPEED = .75;
 
 /** Fine paper/ceramic relief, independent of the planet's painted colors. */
 function createSurfaceRelief(): THREE.CanvasTexture {
@@ -188,6 +133,14 @@ function placeOnSphere(obj: THREE.Object3D, radius: number, lon: number, lat: nu
   obj.quaternion.setFromRotationMatrix(_mat4);
 }
 
+function placeOnSurface(obj: THREE.Object3D, surface: PlanetSurface, lon: number, lat: number) {
+  placeOnSphere(obj, surface.radius, lon, lat);
+  surface.point(_vec3B, 0, obj.position);
+  surface.normal(_vec3B, _surfaceNorth);
+  _quatA.setFromUnitVectors(_vec3B, _surfaceNorth);
+  obj.quaternion.premultiply(_quatA);
+}
+
 export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
   planetId,
   pose,
@@ -252,19 +205,6 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
 
   // 当切换星球时更新 3D 星球贴图与光晕颜色
   useEffect(() => {
-    const { planetMat, haloMat, renderer } = sceneRefs.current;
-    if (!planetMat || !haloMat || !renderer) return;
-
-    const maxAniso = renderer.capabilities.getMaxAnisotropy();
-    const oldMap = planetMat.map;
-    const newMap = createPlanetTexture(planetId, maxAniso);
-    planetMat.map = newMap;
-    planetMat.color.copy(new THREE.Color(PLANETS[planetId].colors.planetMid)).lerp(new THREE.Color(0xffffff), .5);
-    planetMat.emissive.set(PLANETS[planetId].colors.planetMid);
-    planetMat.needsUpdate = true;
-    oldMap?.dispose();
-
-    haloMat.color.set(PLANETS[planetId].colors.planetEdge);
     sceneRefs.current.applyBiome?.(planetId);
   }, [planetId]);
 
@@ -365,44 +305,53 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     // 4. 构建 3D 柔焦星球组 (planetPivot)
     // =========================================================================
     const PLANET_RADIUS = 1.68;
+    let planetSurface = createPlanetSurface(stateRef.current.planetId, PLANET_RADIUS);
     const planetPivot = new THREE.Group();
     planetPivot.name = 'planet-surface';
     planetPivot.position.set(0, -0.82, 0);
     scene.add(planetPivot);
+    planetPivot.userData = { planetId: stateRef.current.planetId, surface: planetSurface };
 
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
-    const initialPlanetTex = createPlanetTexture(stateRef.current.planetId, maxAniso);
-    const surfaceRelief = createSurfaceRelief();
+    let planetMaps = createPlanetSurfaceMaps(stateRef.current.planetId, maxAniso);
 
-    const planetGeo = new THREE.SphereGeometry(PLANET_RADIUS, 64, 48);
-    const planetMat = new THREE.MeshStandardMaterial({
-      map: initialPlanetTex,
-      bumpMap: surfaceRelief,
-      bumpScale: .009,
-      color: new THREE.Color(PLANETS[stateRef.current.planetId].colors.planetMid).lerp(new THREE.Color(0xffffff), .5),
-      roughness: 0.88,
-      metalness: 0.04,
+    const planetGeo = planetSurface.geometry();
+    const planetMat = new THREE.MeshPhysicalMaterial({
+      map: planetMaps.map,
+      bumpMap: planetMaps.bumpMap,
+      roughnessMap: planetMaps.roughnessMap,
+      bumpScale: planetMaps.bumpScale,
+      // Tone only the planet's reflectance; the companion keeps its existing
+      // lights and ivory material. Lower albedo preserves pastel midtones.
+      color: new THREE.Color(.65, .65, .65),
+      roughness: planetMaps.roughness,
+      metalness: 0.015,
+      sheen: .24,
+      sheenRoughness: .9,
+      sheenColor: PLANETS[stateRef.current.planetId].colors.planetCore,
       emissive: new THREE.Color(PLANETS[stateRef.current.planetId].colors.planetMid),
-      emissiveIntensity: 0.055,
-      envMapIntensity: .35,
+      emissiveIntensity: 0.025,
+      envMapIntensity: .22,
     });
     sceneRefs.current.planetMat = planetMat;
 
     const planetMesh = new THREE.Mesh(planetGeo, planetMat);
+    planetMesh.name = 'planet-body';
     planetMesh.receiveShadow = true;
     planetPivot.add(planetMesh);
 
     // 外层喷枪弥散柔光大气圈 (Halo Shell)
-    const haloGeo = new THREE.SphereGeometry(PLANET_RADIUS * 1.065, 48, 32);
+    const haloGeo = planetSurface.geometry(48, 40, .065);
     const haloMat = new THREE.MeshBasicMaterial({
       color: new THREE.Color(PLANETS[stateRef.current.planetId].colors.planetEdge),
       transparent: true,
-      opacity: 0.22,
+      opacity: 0.13,
       side: THREE.BackSide,
       depthWrite: false,
     });
     sceneRefs.current.haloMat = haloMat;
     const haloMesh = new THREE.Mesh(haloGeo, haloMat);
+    haloMesh.name = 'planet-halo';
     planetPivot.add(haloMesh);
 
     // =========================================================================
@@ -519,7 +468,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const stoneCoords = surfaceCoordinates(PLANETS[stateRef.current.planetId].landmarks.stone);
     stoneBaseMat.color.set(PLANETS[stateRef.current.planetId].biome.palette.primary);
     seatCushionMat.color.set(PLANETS[stateRef.current.planetId].biome.palette.secondary);
-    placeOnSphere(rockGroup, PLANET_RADIUS, stoneCoords.lon, stoneCoords.lat);
+    placeOnSurface(rockGroup, planetSurface, stoneCoords.lon, stoneCoords.lat);
     rockGroup.name = 'listening-stone';
     planetPivot.add(rockGroup);
 
@@ -554,7 +503,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const points = Array.from({ length: 21 }, (_, i) => {
         const t = i / 20;
         const rotation = new THREE.Quaternion().slerp(arcRotation, t);
-        return from.clone().applyQuaternion(rotation).multiplyScalar(PLANET_RADIUS + 0.06 + Math.sin(Math.PI * t) * 0.2);
+        return planetSurface.point(from.clone().applyQuaternion(rotation), .06 + Math.sin(Math.PI * t) * .2);
       });
       guideCurve = new THREE.CatmullRomCurve3(points);
       guideCore.geometry.dispose();
@@ -656,9 +605,9 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     };
 
     const portalCoords = surfaceCoordinates(PLANETS[stateRef.current.planetId].landmarks.portal);
-    placeOnSphere(portalGroup, PLANET_RADIUS, portalCoords.lon, portalCoords.lat);
+    placeOnSurface(portalGroup, planetSurface, portalCoords.lon, portalCoords.lat);
     planetPivot.add(portalGroup);
-    let garden = createPlanetGarden(planetPivot, PLANET_RADIUS, PLANETS[stateRef.current.planetId]);
+    let garden = createPlanetGarden(planetPivot, planetSurface, PLANETS[stateRef.current.planetId]);
 
     // =========================================================================
     // 7. 3D 毛茸茸的白色小精灵 (Fluffy White Spirit) (10部分复合模型)
@@ -670,6 +619,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     // Parallel-transport the tangent frame instead of clamping geographic angles.
     // This remains continuous across poles and complete trips around the sphere.
     const walkingFrame = spiritRoot.quaternion.clone();
+    spiritRoot.userData.navigationFrame = walkingFrame;
     const initialFrameInverse = walkingFrame.clone().invert();
     const previousWalkCoords = { ...planetCoordsRef.current };
     const travelAxis = new THREE.Vector3();
@@ -677,6 +627,12 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const counterStep = new THREE.Quaternion();
     const planetStep = new THREE.Quaternion();
     const frameInverse = new THREE.Quaternion();
+    const screenSurfaceMovement = createScreenSurfaceMovement();
+    const facingInverse = new THREE.Quaternion();
+    const facingTravel = new THREE.Vector3();
+    const intendedTravel = new THREE.Vector3();
+    const projectedTravelStart = new THREE.Vector3();
+    const projectedTravelEnd = new THREE.Vector3();
     const followRotation = new THREE.Quaternion();
     const wanderingOffset = wanderingPosition.clone().sub(planetPivot.position);
     const wanderingFocusOffset = wanderingFocus.clone().sub(planetPivot.position);
@@ -686,7 +642,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const rockNormal = rockGroup.position.clone().normalize();
     const portalNormal = portalGroup.position.clone().normalize();
     // Seated body radius + stone footprint + a small visible gap.
-    const minimumStoneAngle = 2 * Math.asin((0.27 + 0.28 + 0.035) / (2 * PLANET_RADIUS));
+    const minimumStoneDistance = .27 + .28 + .035;
     const candidateFrame = new THREE.Quaternion();
     const collisionNormal = new THREE.Vector3();
     const collisionTangent = new THREE.Vector3();
@@ -694,6 +650,42 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const clearanceRotation = new THREE.Quaternion();
     const acceptedStep = new THREE.Quaternion();
     const identityRotation = new THREE.Quaternion();
+    const radialDirection = new THREE.Vector3();
+    const localSurfaceNormal = new THREE.Vector3();
+    const surfaceTilt = new THREE.Quaternion();
+    const travelStartPoint = new THREE.Vector3();
+    const candidatePoint = new THREE.Vector3();
+    const obstaclePoint = new THREE.Vector3();
+    const clearanceProbe = new THREE.Quaternion();
+    const probeRotation = new THREE.Quaternion();
+    const probeAxis = new THREE.Vector3();
+    const frameIsClear = (frame: THREE.Quaternion) => {
+      radialDirection.set(0, 1, 0).applyQuaternion(frame);
+      planetSurface.point(radialDirection, 0, candidatePoint);
+      if (candidatePoint.distanceTo(rockGroup.position) < minimumStoneDistance - .0001
+        || candidatePoint.distanceTo(portalGroup.position) < .58 - .0001) return false;
+      for (const obstacle of garden.obstacles) {
+        planetSurface.point(obstacle.normal, 0, obstaclePoint);
+        if (candidatePoint.distanceTo(obstaclePoint) < .25 + obstacle.radius + .035 - .0001) return false;
+      }
+      return true;
+    };
+
+    const applyStoneColors = (id: PlanetId) => {
+      const palette = PLANETS[id].biome.palette;
+      stoneBaseMat.color.set(palette.primary);
+      stoneBaseMat.emissive.set(palette.primary);
+      seatCushionMat.color.set(palette.secondary);
+      seatCushionMat.emissive.set(palette.secondary);
+      spotMat.color.set(palette.soft);
+      noteMat.color.set(palette.accent);
+      stemMat.color.set(PLANETS[id].portalColors.base);
+      lanternMat.color.set(palette.accent);
+      lanternMat.emissive.set(palette.accent);
+      rightCrystal.material.color.set(palette.soft);
+      rightCrystal.material.emissive.set(palette.secondary);
+    };
+    applyStoneColors(stateRef.current.planetId);
 
     const spiritShadow = new THREE.Mesh(
       new THREE.PlaneGeometry(0.56, 0.56),
@@ -882,6 +874,13 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const fitRight = new THREE.Vector3(), fitUp = new THREE.Vector3(), fitBack = new THREE.Vector3();
     const fitWorld = new THREE.Vector3(), fitRelative = new THREE.Vector3();
     const virtualWalkingFocus = new THREE.Vector3();
+    let globeSupport: THREE.Vector3[] = [];
+    const refreshGlobeSupport = () => {
+      const vertices = haloMesh.geometry.getAttribute('position');
+      globeSupport = [];
+      for (let i = 0; i < vertices.count; i += 3) globeSupport.push(new THREE.Vector3().fromBufferAttribute(vertices, i));
+    };
+    refreshGlobeSupport();
     function fitWanderingCamera(view: THREE.PerspectiveCamera, focus: THREE.Vector3) {
       // Fit actual geometry after animation, including crowns that extend past
       // the globe's silhouette. CSS overflow cannot recover clipped WebGL pixels.
@@ -904,7 +903,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         topSupport = Math.max(topSupport, y + radius * Math.hypot(1, top) + top * z);
         bottomSupport = Math.min(bottomSupport, y - radius * Math.hypot(1, bottom) - bottom * z);
       };
-      include(planetPivot.position, PLANET_RADIUS * 1.065 * haloMesh.scale.x);
+      for (const point of globeSupport) include(fitWorld.copy(point).applyMatrix4(haloMesh.matrixWorld));
       const includeMesh = (object: THREE.Object3D) => {
         if (!(object instanceof THREE.Mesh) || !object.visible) return;
         if (!object.geometry.boundingBox) object.geometry.computeBoundingBox();
@@ -1021,9 +1020,9 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     const updateLandmarkLabel = (element: HTMLSpanElement | null, landmark: THREE.Group, visible: boolean) => {
       if (!element) return;
       landmark.getWorldPosition(labelPoint);
-      labelNormal.copy(labelPoint).sub(planetPivot.position).normalize();
+      labelNormal.set(0, 1, 0).transformDirection(landmark.matrixWorld);
       viewDirection.copy(camera.position).sub(labelPoint).normalize();
-      const frontFacing = labelNormal.dot(viewDirection) > .12;
+      const frontFacing = labelNormal.dot(viewDirection) > 0;
       landmark.localToWorld(labelPoint.set(0, .65, 0)).project(camera);
       const onScreen = Math.abs(labelPoint.x) < .92 && Math.abs(labelPoint.y) < .9;
       element.style.visibility = visible && frontFacing && onScreen ? 'visible' : 'hidden';
@@ -1104,18 +1103,37 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       if (nextId === activeBiomePlanet) return;
       activeBiomePlanet = nextId;
       const next = PLANETS[nextId];
+      planetSurface = createPlanetSurface(nextId, PLANET_RADIUS);
+      planetPivot.userData.planetId = nextId;
+      planetPivot.userData.surface = planetSurface;
+      planetMesh.geometry.dispose();
+      haloMesh.geometry.dispose();
+      planetMesh.geometry = planetSurface.geometry();
+      haloMesh.geometry = planetSurface.geometry(48, 40, .065);
+      refreshGlobeSupport();
+      const previousMaps = planetMaps;
+      planetMaps = createPlanetSurfaceMaps(nextId, maxAniso);
+      planetMat.map = planetMaps.map;
+      planetMat.bumpMap = planetMaps.bumpMap;
+      planetMat.roughnessMap = planetMaps.roughnessMap;
+      planetMat.bumpScale = planetMaps.bumpScale;
+      planetMat.roughness = planetMaps.roughness;
+      planetMat.emissive.set(next.colors.planetMid);
+      planetMat.sheenColor.set(next.colors.planetCore);
+      planetMat.needsUpdate = true;
+      previousMaps.map.dispose(); previousMaps.bumpMap.dispose(); previousMaps.roughnessMap.dispose();
+      haloMat.color.set(next.colors.planetEdge);
       garden.dispose();
-      garden = createPlanetGarden(planetPivot, PLANET_RADIUS, next);
+      garden = createPlanetGarden(planetPivot, planetSurface, next);
       const stone = surfaceCoordinates(next.landmarks.stone);
       const portal = surfaceCoordinates(next.landmarks.portal);
-      placeOnSphere(rockGroup, PLANET_RADIUS, stone.lon, stone.lat);
-      placeOnSphere(portalGroup, PLANET_RADIUS, portal.lon, portal.lat);
+      placeOnSurface(rockGroup, planetSurface, stone.lon, stone.lat);
+      placeOnSurface(portalGroup, planetSurface, portal.lon, portal.lat);
       rockNormal.copy(rockGroup.position).normalize();
       portalNormal.copy(portalGroup.position).normalize();
       guideEnd.copy(guideDestination === 'portal' ? portalNormal : rockNormal);
       guideStart.set(Infinity, Infinity, Infinity);
-      stoneBaseMat.color.set(next.biome.palette.primary);
-      seatCushionMat.color.set(next.biome.palette.secondary);
+      applyStoneColors(nextId);
       applyPortalColors(next.portalColors);
       applySpiritTint(nextId);
       restingFrameDirty = true;
@@ -1175,7 +1193,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       if (isJoystickActive) {
         const walkSpeed = 1.25;
         targetCoordsRef.current.lon += joy.x * walkSpeed * dt;
-        targetCoordsRef.current.lat += joy.y * walkSpeed * 0.75 * dt;
+        targetCoordsRef.current.lat += joy.y * walkSpeed * VERTICAL_MOVEMENT_SPEED * dt;
       }
 
       // 2. 弹簧缓动插值 (Spring-like Interpolation)：将 planetCoordsRef 平滑驱向 targetCoordsRef
@@ -1206,33 +1224,39 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       const wantsToMove =
         (isJoystickActive || springSpeed > 0.045) && !movementLocked;
 
-      if (wantsToMove) {
-        const moveVx = isJoystickActive ? joy.x : springVelocityRef.current.lon;
-        const moveVy = isJoystickActive ? joy.y : springVelocityRef.current.lat;
-        if (Math.hypot(moveVx, moveVy) > 0.02) {
-          targetYaw = Math.atan2(moveVx, moveVy || 0.001);
-        }
-      } else if (!isResting) {
-        targetYaw = THREE.MathUtils.damp(targetYaw, 0, 3.5, dt);
-      }
-
       const travelX = planetCoordsRef.current.lon - previousWalkCoords.lon;
       const travelZ = planetCoordsRef.current.lat - previousWalkCoords.lat;
       const travelAngle = Math.hypot(travelX, travelZ);
+      const inputScreenX = isJoystickActive ? joy.x : travelX;
+      const inputScreenY = isJoystickActive ? joy.y : travelZ / VERTICAL_MOVEMENT_SPEED;
       let actualTravel = 0;
+      facingTravel.set(0, 0, 0);
+      intendedTravel.set(0, 0, 0);
       if (!movementLocked) {
+        radialDirection.set(0, 1, 0).applyQuaternion(walkingFrame);
+        planetSurface.point(radialDirection, 0, travelStartPoint);
         frameInverse.copy(walkingFrame).invert();
         candidateFrame.copy(walkingFrame);
         if (travelAngle > 1e-10) {
-          travelAxis.set(travelZ, 0, -travelX).normalize();
+          planetPivot.updateWorldMatrix(true, false);
+          const localMove = screenSurfaceMovement(inputScreenX, inputScreenY, walkingFrame,
+            planetSurface, planetPivot.matrixWorld, camera, container!.clientWidth, container!.clientHeight);
+          travelAxis.set(localMove.y, 0, -localMove.x).normalize();
           travelStep.setFromAxisAngle(travelAxis, travelAngle);
           candidateFrame.multiply(travelStep).normalize();
+          radialDirection.set(0, 1, 0).applyQuaternion(candidateFrame);
+          planetSurface.point(radialDirection, 0, intendedTravel).sub(travelStartPoint);
         }
-        const keepClear = (obstacle: THREE.Vector3, angle: number) => {
+        const keepClear = (obstacle: THREE.Vector3, clearance: number) => {
           collisionNormal.set(0, 1, 0).applyQuaternion(candidateFrame);
           const dot = THREE.MathUtils.clamp(collisionNormal.dot(obstacle), -1, 1);
-          const cos = Math.cos(angle);
-          if (dot <= cos) return;
+          // The form changes radial height and slope. Resolve physical surface
+          // distance, rather than retaining a sphere-only angular boundary.
+          const maximumAngle = 2 * Math.asin(clearance / (2 * planetSurface.minRadius));
+          if (dot <= Math.cos(maximumAngle)) return;
+          planetSurface.point(collisionNormal, 0, candidatePoint);
+          planetSurface.point(obstacle, 0, obstaclePoint);
+          if (candidatePoint.distanceTo(obstaclePoint) >= clearance) return;
           collisionTangent.copy(collisionNormal).addScaledVector(obstacle, -dot);
           if (collisionTangent.lengthSq() < 1e-12) {
             collisionTangent.set(0, 1, 0).applyQuaternion(walkingFrame);
@@ -1240,18 +1264,64 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
             if (collisionTangent.lengthSq() < 1e-12) collisionTangent.crossVectors(obstacle, Math.abs(obstacle.y) < .9 ? worldUp : _surfaceNorth.set(1, 0, 0));
           }
           collisionTangent.normalize();
-          clearanceNormal.copy(obstacle).multiplyScalar(cos).addScaledVector(collisionTangent, Math.sin(angle));
+          let low = Math.acos(dot), high = maximumAngle + .002;
+          for (let iteration = 0; iteration < 12; iteration++) {
+            const middle = (low + high) / 2;
+            clearanceNormal.copy(obstacle).multiplyScalar(Math.cos(middle)).addScaledVector(collisionTangent, Math.sin(middle));
+            planetSurface.point(clearanceNormal, 0, candidatePoint);
+            if (candidatePoint.distanceTo(obstaclePoint) < clearance) low = middle;
+            else high = middle;
+          }
+          clearanceNormal.copy(obstacle).multiplyScalar(Math.cos(high)).addScaledVector(collisionTangent, Math.sin(high));
           clearanceRotation.setFromUnitVectors(collisionNormal, clearanceNormal);
           candidateFrame.premultiply(clearanceRotation).normalize();
         };
         // Iterating also resolves the rare overlap between neighboring boundaries.
-        for (let pass = 0; pass < 3; pass++) {
-          keepClear(rockNormal, minimumStoneAngle);
-          keepClear(portalNormal, 2 * Math.asin((.25 + .29 + .04) / (2 * PLANET_RADIUS)));
-          for (const obstacle of garden.obstacles) keepClear(obstacle.normal, 2 * Math.asin((.25 + obstacle.radius + .035) / (2 * PLANET_RADIUS)));
+        for (let pass = 0; pass < 16; pass++) {
+          keepClear(rockNormal, minimumStoneDistance);
+          keepClear(portalNormal, .25 + .29 + .04);
+          for (const obstacle of garden.obstacles) keepClear(obstacle.normal, .25 + obstacle.radius + .035);
+          if (frameIsClear(candidateFrame)) break;
+        }
+        // Nearby personal-space boundaries can overlap. Never accept a final
+        // projection into another solid root: keep the last valid position so
+        // the visitor can steer around it. Only an obstructed arrival needs a
+        // nearby free placement, beneath the existing travel transition.
+        if (!frameIsClear(candidateFrame)) {
+          if (frameIsClear(walkingFrame)) candidateFrame.copy(walkingFrame);
+          else {
+            let found = false;
+            for (const angle of [.12, .24, .4, .65, .9, 1.2]) {
+              for (let side = 0; side < 16; side++) {
+                const bearing = side * Math.PI / 8;
+                probeAxis.set(Math.cos(bearing), 0, Math.sin(bearing));
+                probeRotation.setFromAxisAngle(probeAxis, angle);
+                clearanceProbe.copy(walkingFrame).multiply(probeRotation);
+                if (frameIsClear(clearanceProbe)) {
+                  candidateFrame.copy(clearanceProbe);
+                  found = true;
+                  break;
+                }
+              }
+              if (found) break;
+            }
+          }
+        }
+        if (travelAngle > 1e-10 && frameIsClear(walkingFrame)) {
+          // A collision slide may be valid geometrically but still push against
+          // the requested direction. Stop at that boundary instead of reversing.
+          projectedTravelStart.copy(travelStartPoint).applyMatrix4(planetPivot.matrixWorld).project(camera);
+          radialDirection.set(0, 1, 0).applyQuaternion(candidateFrame);
+          planetSurface.point(radialDirection, 0, projectedTravelEnd).applyMatrix4(planetPivot.matrixWorld).project(camera);
+          const screenDx = (projectedTravelEnd.x - projectedTravelStart.x) * container!.clientWidth;
+          const screenDy = (projectedTravelStart.y - projectedTravelEnd.y) * container!.clientHeight;
+          if (screenDx * inputScreenX + screenDy * inputScreenY < -1e-8) candidateFrame.copy(walkingFrame);
         }
         acceptedStep.copy(frameInverse).multiply(candidateFrame).normalize();
-        actualTravel = acceptedStep.angleTo(identityRotation) * PLANET_RADIUS;
+        radialDirection.set(0, 1, 0).applyQuaternion(candidateFrame);
+        planetSurface.point(radialDirection, 0, candidatePoint);
+        actualTravel = candidatePoint.distanceTo(travelStartPoint);
+        facingTravel.copy(candidatePoint).sub(travelStartPoint);
         counterStep.copy(acceptedStep).invert().slerp(identityRotation, 0.55);
         planetStep.copy(walkingFrame).multiply(counterStep).multiply(frameInverse);
         planetPivot.quaternion.multiply(planetStep).normalize();
@@ -1259,11 +1329,21 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       }
       previousWalkCoords.lon = planetCoordsRef.current.lon;
       previousWalkCoords.lat = planetCoordsRef.current.lat;
-      spiritRoot.quaternion.copy(walkingFrame);
-      spiritRoot.position.set(0, PLANET_RADIUS, 0).applyQuaternion(walkingFrame);
+      radialDirection.set(0, 1, 0).applyQuaternion(walkingFrame);
+      planetSurface.point(radialDirection, 0, spiritRoot.position);
+      planetSurface.normal(radialDirection, localSurfaceNormal);
+      surfaceTilt.setFromUnitVectors(radialDirection, localSurfaceNormal);
+      spiritRoot.quaternion.copy(walkingFrame).premultiply(surfaceTilt);
+      if (wantsToMove) {
+        if (facingTravel.lengthSq() < 1e-10) facingTravel.copy(intendedTravel);
+        facingTravel.applyQuaternion(facingInverse.copy(spiritRoot.quaternion).invert());
+        if (Math.hypot(facingTravel.x, facingTravel.z) > 1e-8) targetYaw = Math.atan2(facingTravel.x, facingTravel.z);
+      } else if (!isResting) {
+        targetYaw = THREE.MathUtils.damp(targetYaw, 0, 3.5, dt);
+      }
       // The same accepted travel drives both the leg phase and landing sounds.
       // Limit correction-only displacement and never emit a catch-up burst.
-      const gaitDistance = Math.min(actualTravel, travelAngle * PLANET_RADIUS, FLUFFY_STEP_DISTANCE * .95);
+      const gaitDistance = Math.min(actualTravel, travelAngle * planetSurface.maxRadius * 1.7, FLUFFY_STEP_DISTANCE * .95);
       const actualSpeed = gaitDistance / Math.max(dt, .001);
       const isMoving = isJoystickActive && actualSpeed > MIN_GAIT_SPEED;
       let footLanding: FluffyFoot | null = null;
@@ -1303,7 +1383,7 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         if (Math.abs(camera.fov - targetFov) < 0.001) camera.fov = targetFov;
         camera.updateProjectionMatrix();
       }
-      surfaceNormal.copy(spiritRoot.position).normalize().applyQuaternion(planetPivot.quaternion);
+      surfaceNormal.copy(localSurfaceNormal).applyQuaternion(planetPivot.quaternion);
       followRotation.copy(planetPivot.quaternion).multiply(walkingFrame).multiply(initialFrameInverse);
       followPosition.copy(wanderingOffset).applyQuaternion(followRotation).add(planetPivot.position);
       followFocus.copy(wanderingFocusOffset).applyQuaternion(followRotation).add(planetPivot.position);
@@ -1315,11 +1395,10 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       camera.lookAt(cameraFocus);
 
       // 3. 检测小精灵是否接近【🪑 聆听石】或【🌀 引力传送门】
-      const currentNormal = spiritRoot.position.clone().normalize();
-      const dRock = Math.acos(THREE.MathUtils.clamp(currentNormal.dot(rockNormal), -1, 1));
-      const dPortal = Math.acos(THREE.MathUtils.clamp(currentNormal.dot(portalNormal), -1, 1));
-      const nearRock = dRock < (lastNearRock ? 0.46 : 0.38);
-      const nearPortal = dPortal < (lastNearPortal ? 0.48 : 0.42);
+      const dRock = spiritRoot.position.distanceTo(rockGroup.position);
+      const dPortal = spiritRoot.position.distanceTo(portalGroup.position);
+      const nearRock = dRock < (lastNearRock ? .77 : .65);
+      const nearPortal = dPortal < (lastNearPortal ? .81 : .71);
       const nearDestination = guideDestination === 'portal' ? nearPortal : nearRock;
       guideMaterial.opacity = THREE.MathUtils.damp(guideMaterial.opacity, nearDestination ? 0.9 : 0.74, 5, dt);
       stoneBaseMat.emissiveIntensity = THREE.MathUtils.damp(stoneBaseMat.emissiveIntensity, nearRock ? 0.28 : 0.03, 5, dt);
@@ -1488,15 +1567,35 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
         hasWalkingReference = true;
       }
       const bubble = overheadBubbleRef.current;
-      if (bubble && container) {
+      const bubbleViewport = container && bubble ? `${container.clientWidth}x${container.clientHeight}:${bubble.offsetWidth}x${bubble.offsetHeight}` : '';
+      if (bubble && container && (bubble.dataset.release !== 'true' || bubble.dataset.viewport !== bubbleViewport)) {
         topTuft.localToWorld(headPoint.set(0, .075, 0)).project(camera);
         const headX = (headPoint.x + 1) * container.clientWidth / 2;
         const headY = (1 - headPoint.y) * container.clientHeight / 2;
+        const isRelease = bubble.dataset.release === 'true';
+        // Short phones can use the hint's reserved area above this canvas.
+        // Bound the silhouette there instead of pushing it down onto the spirit.
+        const sceneTop = container.closest('.planet-scene')?.getBoundingClientRect().top ?? container.getBoundingClientRect().top;
+        const topLimit = sceneTop - container.getBoundingClientRect().top + 12;
+        if (isRelease) {
+          const aspect = Number.parseFloat(getComputedStyle(bubble).getPropertyValue('--bubble-aspect')) || 1.7;
+          const heightBudget = Math.max(112, headY - 20 - topLimit - 16);
+          bubble.style.setProperty('--release-max-width', `${heightBudget * aspect}px`);
+        }
         const halfWidth = bubble.offsetWidth / 2;
-        const x = THREE.MathUtils.clamp(headX, halfWidth + 10, container.clientWidth - halfWidth - 10);
-        const y = Math.max(bubble.offsetHeight + 6, headY - 20);
+        const drift = isRelease ? Math.min(26, Math.max(10, (container.clientWidth - bubble.offsetWidth) / 2 - 12)) : 0;
+        const x = THREE.MathUtils.clamp(headX, halfWidth + drift + 10, container.clientWidth - halfWidth - drift - 10);
+        const y = isRelease ? headY - 20 : Math.max(bubble.offsetHeight + 6, headY - 20);
         bubble.style.transform = `translate(${x}px, ${y}px) translate(-50%, -100%)`;
         bubble.style.setProperty('--bubble-tail-x', `${headX - x}px`);
+        if (isRelease) {
+          const rise = Math.max(20, y - bubble.offsetHeight - topLimit + bubble.offsetHeight * .3);
+          bubble.style.setProperty('--flight-drift', `${drift}px`);
+          bubble.style.setProperty('--flight-rise', `${rise}px`);
+          bubble.dataset.overHint = y - bubble.offsetHeight - rise < 0 ? 'true' : 'false';
+          bubble.dataset.anchored = 'true';
+          bubble.dataset.viewport = bubbleViewport;
+        }
         bubble.style.visibility = 'visible';
       }
       updateLandmarkLabel(stoneLabelRef.current, rockGroup, !isResting && stateRef.current.interactionEnabled);
@@ -1553,7 +1652,8 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
       geometries.forEach(geometry => geometry.dispose());
       materials.forEach(mat => mat.dispose());
       planetMat.map?.dispose();
-      surfaceRelief.dispose();
+      planetMaps.bumpMap.dispose();
+      planetMaps.roughnessMap.dispose();
       plushRelief.dispose();
       spiritGlowTexture.dispose();
       spiritGlow.material.dispose();
@@ -1574,11 +1674,19 @@ export const ThreePlanetStage: React.FC<ThreePlanetStageProps> = ({
     <div className="three-planet-stage relative w-full flex-1 min-h-0 flex items-center justify-center" data-resting={pose === 'sitting'}>
       <span ref={stoneLabelRef} className="landmark-label" style={{ visibility: 'hidden' }} aria-hidden="true">♫ <BilingualText select={c => c.stoneLabel} /></span>
       <span ref={portalLabelRef} className="landmark-label" style={{ visibility: 'hidden' }} aria-hidden="true">✧ <BilingualText select={c => c.portalLabel} /></span>
-      {/* 头顶云朵状白色气泡（正常倾诉 4秒 / 空输入错误轻柔晃动提示） */}
-      {overheadBubble && (
+      {/* Released thoughts drift independently; guidance stays near the head. */}
+      {overheadBubble?.shape ? (
+        <ReleasedMessageBubble
+          key={overheadBubble.id}
+          text={overheadBubble.text}
+          shape={overheadBubble.shape}
+          anchorRef={overheadBubbleRef}
+        />
+      ) : overheadBubble && (
         <div
           ref={overheadBubbleRef}
           key={overheadBubble.id}
+          data-release="false"
           style={{ visibility: 'hidden' }}
           className={`spirit-overhead-bubble absolute top-0 left-0 z-30 px-4 py-2.5 rounded-3xl text-center pointer-events-none ${
             overheadBubble.isError

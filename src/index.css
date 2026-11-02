@@ -50,6 +50,20 @@
 .roaming-mobile-frame p, .roaming-mobile-frame input { font-family: var(--font-body); font-weight: 400; }
 .roaming-mobile-frame button { font-family: var(--font-body); font-weight: 500; }
 
+/* Increase interface type without changing rem-based spacing or the SVG brand
+   lettering. Explicit UI sizes below follow the same two-pixel increment. */
+.roaming-mobile-frame {
+  --text-xs: 14px;
+  --text-sm: 16px;
+  --text-base: 18px;
+  --text-lg: 20px;
+  --text-xl: 22px;
+  --text-2xl: 26px;
+  --text-3xl: 32px;
+  --text-4xl: 38px;
+  font-size: 18px;
+}
+
 /* A shared bilingual footprint: typography and geometry never depend on the
    selected language. Hidden copies reserve the larger natural line count. */
 .bilingual-text { display: inline-grid; min-width: 0; max-width: 100%; vertical-align: middle; }
@@ -65,25 +79,39 @@
 .leave-control { width: 118px; }
 .orbit-planet-name { min-height: 43.5px; }
 .escape-cloud-button { display: grid; place-items: center; }
-.farewell-scene {
+.roaming-mobile-frame[data-act="farewell"] {
+  height: 100svh;
+  height: 100dvh;
+}
+.roaming-mobile-frame > .farewell-scene {
+  --farewell-portrait-height: 330px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto minmax(220px, 1fr) auto auto;
+  grid-template-rows: auto minmax(var(--farewell-portrait-height), 1fr) auto auto;
   justify-items: center;
   align-items: center;
-  gap: 22px;
-  padding: 28px 22px 38px;
+  gap: clamp(14px, 2.15svh, 18px);
+  /* The shared header already reserves the top safe area. A larger bottom
+     reserve lifts the actions while the flexible portrait row keeps its size. */
+  padding: clamp(12px, 1.7svh, 16px) clamp(20px, 5.65vw, 24px)
+    calc(clamp(72px, 10.2svh, 90px) + env(safe-area-inset-bottom, 0px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scroll-padding-top: 12px;
+  scroll-padding-bottom: max(16px, env(safe-area-inset-bottom, 0px));
   isolation: isolate;
 }
 .farewell-scene > :not(.farewell-nebula) { position: relative; z-index: 1; min-width: 0; }
-.farewell-kicker { margin: 0; font-size: 13px; line-height: 1.5; letter-spacing: .16em; opacity: .8; }
+.farewell-kicker { margin: 0; font-size: 15px; line-height: 1.5; letter-spacing: .16em; opacity: .8; }
 .farewell-portrait { width: 100%; height: 100%; display: grid; grid-template-columns: minmax(0, 1fr); place-items: center; }
 .farewell-copy { display: grid; gap: 11px; width: 100%; max-width: 370px; }
-.farewell-title { margin: 0; font-size: clamp(26px, 7.5vw, 31px); line-height: 1.14; text-wrap: balance; text-shadow: 0 2px 15px #30244924; }
-.farewell-caption { margin: 0; font-size: 14px; line-height: 1.65; opacity: .83; text-wrap: balance; }
-.farewell-actions { width: 100%; display: grid; justify-items: center; gap: 12px; margin-top: 12px; }
-.farewell-primary { width: 100%; max-width: 310px; min-height: 52px; padding: 13px 18px; font-size: 15px; color: #4D4566; }
-.farewell-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 44px; padding: 8px 14px; border: none; background: none; color: inherit; opacity: .88; font-size: 14px; cursor: pointer; }
+.farewell-title { margin: 0; font-size: clamp(28px, calc(7.5vw + 2px), 33px); line-height: 1.14; text-wrap: balance; text-shadow: 0 2px 15px #30244924; }
+.farewell-caption { margin: 0; font-size: 16px; line-height: 1.65; opacity: .83; text-wrap: balance; }
+.farewell-actions { width: 100%; max-width: 310px; display: grid; justify-items: center; gap: clamp(8px, 1.4svh, 12px); margin-top: 0; }
+.farewell-actions > button { touch-action: manipulation; }
+.farewell-primary { width: 100%; max-width: 310px; min-height: 52px; padding: 13px 18px; font-size: 17px; color: #4D4566; }
+.farewell-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 10px; width: 100%; max-width: 310px; min-height: 48px; padding: 10px 14px; border: none; background: none; color: inherit; opacity: .88; font-size: 16px; cursor: pointer; }
 .farewell-secondary:hover { opacity: 1; }
 .farewell-secondary > span:last-child { font-size: 21px; line-height: 1; }
 .farewell-nebula { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 0; }
@@ -140,24 +168,34 @@
   .farewell-spirit-float, .farewell-spirit-wave, .farewell-spirit-eyes, .farewell-spirit-aura, .farewell-starfield { animation: none; }
 }
 @media (max-height: 740px) {
-  .farewell-scene { gap: 14px; padding: 16px 22px 24px; grid-template-rows: auto minmax(180px, 1fr) auto auto; }
+  .roaming-mobile-frame > .farewell-scene {
+    --farewell-portrait-height: 250px;
+    gap: clamp(10px, 1.8svh, 13px);
+    padding-top: clamp(6px, 1.3svh, 9px);
+    padding-bottom: calc(clamp(50px, 8.2svh, 60px) + env(safe-area-inset-bottom, 0px));
+  }
   .farewell-spirit { width: 300px; height: 250px; }
-  .farewell-title { font-size: 27px; }
-  .farewell-caption { font-size: 13px; }
-  .farewell-actions { margin-top: 2px; gap: 8px; }
+  .farewell-title { font-size: 29px; }
+  .farewell-caption { font-size: 15px; }
+  .farewell-actions { gap: 8px; }
 }
 @media (max-height: 620px) {
-  .farewell-scene { gap: 8px; padding: 8px 20px 16px; grid-template-rows: auto minmax(160px, 1fr) auto auto; }
-  .farewell-kicker { font-size: 12px; }
+  .roaming-mobile-frame > .farewell-scene {
+    --farewell-portrait-height: 180px;
+    gap: 8px;
+    padding: 8px 20px calc(clamp(28px, 5svh, 34px) + env(safe-area-inset-bottom, 0px));
+  }
+  .farewell-kicker { font-size: 14px; }
   .farewell-spirit { width: 230px; height: 180px; }
-  .farewell-title { font-size: 25px; }
+  .farewell-title { font-size: 27px; }
   .farewell-copy { gap: 8px; }
-  .farewell-caption { font-size: 12.5px; }
-  .farewell-primary { min-height: 44px; padding-block: 10px; font-size: 14px; }
-  .farewell-secondary { min-height: 40px; font-size: 13px; }
+  .farewell-caption { font-size: 14.5px; }
+  .farewell-primary { min-height: 48px; padding-block: 10px; font-size: 16px; }
+  .farewell-secondary { min-height: 48px; font-size: 15px; }
 }
 
 /* Mobile-View H5 Container with strict specifications */
+.app-viewport-shell { height: 100vh; height: 100svh; height: 100dvh; }
 .roaming-mobile-frame {
   width: 100%;
   max-width: 414px;
@@ -415,14 +453,15 @@
 .stardust-thought {
   position: absolute;
   top: calc(30px + var(--star-height, .5) * 18px);
-  left: calc(12px + (100% - min(320px, calc(100% - 24px)) - 24px) * var(--star-position, .5));
-  width: min(320px, calc(100% - 24px));
+  left: calc(20px + (100% - min(280px, calc(100% - 40px)) - 40px) * var(--star-position, .5));
+  width: min(280px, calc(100% - 40px));
   padding: 6px 16px;
   background: radial-gradient(ellipse, rgba(255,255,255,.08), rgba(255,255,255,.02) 75%, transparent);
   text-shadow: 0 0 12px rgba(255,255,255,.2);
   box-shadow: 0 0 18px rgba(255,255,255,.04);
   overflow-wrap: anywhere;
 }
+.roaming-mobile-frame .stardust-thought p { font-size: 13px; line-height: 20px; font-weight: 500; }
 @media (max-height: 740px) {
   .stardust-layer { height: 104px; }
   .stardust-thought { top: calc(28px + var(--star-height, .5) * 6px); }
@@ -573,7 +612,7 @@
   min-height: 38px;
   padding: 5px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   opacity: .5;
   cursor: pointer;
@@ -696,7 +735,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .planet-instructions { padding: 22px; }
 .exit-guide-card { padding: 26px 24px; }
 .exit-guide-arrow { display: flex; align-items: center; justify-content: center; height: 36px; margin-bottom: 12px; }
-#exit-guide-title { font-size: 28px; line-height: 1.15; }
+#exit-guide-title { font-size: 30px; line-height: 1.15; }
 #exit-guide-body { max-width: 260px; margin: 10px auto 0; line-height: 1.6; text-wrap: balance; }
 .exit-guide-confirm { margin-top: 20px; }
 .guide-step-number {
@@ -706,7 +745,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
   background: #eee5f7;
   color: #695281;
@@ -726,12 +765,24 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   -webkit-backdrop-filter: blur(10px);
   border: none;
   color: rgba(255, 255, 255, .85);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 500;
   box-shadow: none;
   cursor: pointer;
 }
-.message-slot { min-height: 82px; width: 100%; }
+.message-slot { min-height: 156px; width: 100%; }
+.roaming-mobile-frame > .planet-scene[data-listening="true"] {
+  padding-bottom: calc(clamp(42px, 6.5svh, 64px) + env(safe-area-inset-bottom, 0px));
+}
+.planet-scene[data-listening="true"] .planet-control-dock { padding-bottom: 8px; }
+.planet-scene[data-listening="true"] .planet-stage { transform: translateY(clamp(-10px, -1svh, -6px)); }
+.planet-control-dock .message-panel form > button { min-height: 48px; }
+.planet-control-dock .message-panel input { min-height: 44px; }
+@media (max-height: 650px) { .message-slot { min-height: 142px; } }
+@media (max-height: 620px) {
+  .roaming-mobile-frame > .planet-scene[data-listening="true"] { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+  .planet-scene[data-listening="true"] .planet-control-dock { padding-bottom: 6px; }
+}
 /* Sparse atmospheric planes sit behind the transparent 3D canvas and controls. */
 .planet-atmosphere {
   position: absolute; inset: 0; z-index: 0; overflow: hidden;
@@ -866,7 +917,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 }
 .discovery-content { min-height: 0; overflow-y: auto; overflow-x: hidden; }
 .discovery-footer { flex-shrink: 0; }
-.discovery-status { min-height: 42px; margin: 8px 0 12px; font-size: 12px; line-height: 1.6; color: #64748b; }
+.discovery-status { min-height: 42px; margin: 8px 0 12px; font-size: 14px; line-height: 1.6; color: #64748b; }
 .discovery-cancel { margin-top: 10px; }
 .discovery-spin:disabled { opacity: .75; }
 .planet-orbit {
@@ -913,7 +964,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   border-radius: 50%;
   transition: outline .2s, filter .2s;
 }
-.orbit-planet-name { font-size: 10px; line-height: 1.45; overflow-wrap: anywhere; }
+.orbit-planet-name { font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .planet-orbit-slot[data-selected="true"] .orbit-planet { outline: 3px solid #c2a568; outline-offset: 5px; filter: brightness(1.08); }
 .planet-orbit-slot[data-selected="true"] .orbit-planet-name { font-weight: 600; color: #765327; }
 .orbit-pointer { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); color: #9a754c; font-size: 24px; }
@@ -1000,6 +1051,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .escape-cloud-button {
   position: relative;
   isolation: isolate;
+  font-size: 17px;
   border: none;
   border-radius: 46% 54% 48% 52% / 58% 49% 51% 42%;
   color: #51435f;
@@ -1024,7 +1076,10 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   -webkit-backdrop-filter: blur(16px);
   box-shadow: 0 8px 32px rgba(0,0,0,.04);
   min-height: 64px;
+  font-size: 20px;
 }
+.quiz-question h2 { font-size: 32px; }
+.quiz-navigation, [data-act="warp"] section p { font-size: 17px; }
 .quiz-scene .airbrush-tape-option::before {
   content: ''; position: absolute; inset: -70%; pointer-events: none;
   background: radial-gradient(circle, #d4b7f0a6, #f3c6d76b 30%, transparent 65%);
@@ -1059,10 +1114,10 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   gap: clamp(20px, 3vh, 28px);
 }
 .quiz-scene .quiz-options > button { align-self: center; }
-[data-act="quiz"] .language-toggle button { font-size: 15px; }
+[data-act="quiz"] .language-toggle button { font-size: 17px; }
 .landmark-label {
   position: absolute; top: 0; left: 0; z-index: 15;
-  padding: 4px 9px; border-radius: 999px; font-size: 10px;
+  padding: 4px 9px; border-radius: 999px; font-size: 12px;
   color: #fff8ef; white-space: nowrap; pointer-events: none;
   background: rgba(44,32,75,.55); backdrop-filter: blur(8px);
   box-shadow: 0 0 12px #f0d5ff30; text-shadow: 0 1px 3px #25243d80;
@@ -1077,8 +1132,8 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   .quiz-scene .quiz-body { padding-block: 8px 16px; row-gap: 16px; }
   .quiz-scene .quiz-question { min-height: 104px; }
   .quiz-scene .quiz-options { gap: 16px; }
-  .quiz-scene .airbrush-tape-option { min-height: 57px; padding-block: 12px; font-size: 17px; }
-  .quiz-question h2 { font-size: 28px; }
+  .quiz-scene .airbrush-tape-option { min-height: 57px; padding-block: 12px; font-size: 19px; }
+  .quiz-question h2 { font-size: 30px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .escape-cloud-button { animation: none; }
@@ -1099,7 +1154,13 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .aura-sky { bottom: 4%; left: 0; background: #9ab8e4; }
 /* Independent, staggered color currents keep the cover softly alive without
    moving the title, button, or the aura's layout box. */
-.roaming-mobile-frame > .intro-scene { overflow: visible; }
+.roaming-mobile-frame > .intro-scene {
+  overflow: visible;
+  padding-bottom: clamp(64px, 11.5svh, 108px);
+}
+@media (max-height: 740px) {
+  .roaming-mobile-frame > .intro-scene { padding-bottom: clamp(44px, 10svh, 72px); }
+}
 .intro-scene > .my-auto { transform: translateY(clamp(-85px, -10vh, -50px)); }
 .intro-scene .breathing-aura { width: clamp(280px, 86vw, 360px); animation: coverAuraBreath 14s ease-in-out infinite; }
 .intro-scene .aura-fluid { animation-duration: 28s; filter: none; }
@@ -1141,14 +1202,14 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
 .headphone-ripple:nth-child(2) { animation-delay: 2s; }
 .headphone-ripple:nth-child(3) { animation-delay: 4s; }
 .interlude-subtitles { display: grid; width: 100%; max-width: 330px; text-align: center; }
-.interlude-panel { grid-area: 1 / 1; margin: 0; font-size: clamp(19px, 5.5vw, 23px); line-height: 1.65; text-wrap: balance; opacity: 0; visibility: hidden; transition: opacity .7s ease; }
+.interlude-panel { grid-area: 1 / 1; margin: 0; font-size: clamp(21px, calc(5.5vw + 2px), 25px); line-height: 1.65; text-wrap: balance; opacity: 0; visibility: hidden; transition: opacity .7s ease; }
 .interlude-scene:is([data-phase="welcome"], [data-phase="fading"]) .interlude-first { visibility: visible; }
 .interlude-scene[data-phase="welcome"] .interlude-first { opacity: 1; }
 .interlude-welcome-reveal { animation: subtitleReveal 1.4s .1s ease-out both; }
 .interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) .interlude-second { opacity: 1; visibility: visible; transition-duration: .9s; }
 .interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) .headphone-aura { opacity: 1; visibility: visible; }
 .interlude-scene:is([data-phase="headphones"], [data-phase="ready"]) :is(.headphone-icon, .headphone-ripple) { animation-play-state: running; }
-.interlude-scene .interlude-ready { flex-shrink: 0; min-height: 48px; min-width: 164px; padding: 12px 25px; font-size: 14px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .9s ease; }
+.interlude-scene .interlude-ready { flex-shrink: 0; min-height: 48px; min-width: 164px; padding: 12px 25px; font-size: 16px; opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .9s ease; }
 .interlude-scene[data-phase="ready"] .interlude-ready { opacity: 1; visibility: visible; pointer-events: auto; }
 @keyframes interludeEnter { from { opacity: 0; } to { opacity: 1; } }
 @keyframes headphoneFloat { 0%,100% { transform: translateY(3px); } 50% { transform: translateY(-4px); } }
@@ -1158,7 +1219,7 @@ button:focus-visible, input:focus-visible, [tabindex]:focus-visible {
   .interlude-scene { padding-bottom: 28px; }
   .headphone-aura { width: 150px; height: 150px; }
   .headphone-icon { width: 100px; height: 100px; }
-  .interlude-panel { font-size: 19px; }
+  .interlude-panel { font-size: 21px; }
 }
 @media (max-height: 620px) {
   .headphone-aura { width: 120px; height: 120px; }

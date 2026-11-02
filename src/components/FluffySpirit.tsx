@@ -2,6 +2,7 @@ import { useLanguage } from '../i18n/LanguageContext';
 import React, { useEffect, useState } from 'react';
 import { BilingualText } from '../i18n/BilingualText';
 import { FarewellSpirit } from './FarewellSpirit';
+import type { BubbleShape } from '../data/bubbleShapes';
 
 export type SpiritPose = 'idle' | 'walking' | 'sitting' | 'waving';
 
@@ -10,6 +11,8 @@ export interface OverheadBubbleData {
   text: string;
   isError?: boolean;
   messageKey?: 'emptyErrorBubble' | 'spiritHint' | 'stoneGuide';
+  // Snapshot only released user messages; translated guidance stays anchored.
+  shape?: BubbleShape;
 }
 
 interface FluffySpiritProps {

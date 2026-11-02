@@ -30,11 +30,15 @@ const { translations: { en } } = require('../src/i18n/translations.ts');
       const { FluffyFootsteps } = await import('/src/audio/fluffyFootsteps.ts');
       const ctx = new OfflineAudioContext(2, 48000 * 3, 48000);
       const synth = new FluffyFootsteps(ctx, ctx.destination);
+      const exported = await ctx.decodeAudioData(await (await fetch('/audio/fluffy-little-footstep.wav')).arrayBuffer());
+      const source = synth.sample.getChannelData(0), decoded = exported.getChannelData(0);
+      let exportError = 0;
+      for (let i = 0; i < source.length; i++) exportError = Math.max(exportError, Math.abs(source[i] - decoded[i]));
       const times = Array.from({ length: 8 }, (_, i) => .1 + i * .32);
       times.forEach((time, i) => synth.play(i % 2 ? 'right' : 'left', 1.6, time));
       const audio = await ctx.startRendering();
       const channels = [audio.getChannelData(0), audio.getChannelData(1)];
-      return { voices: synth.voices.size, windows: times.map((time, i) => {
+      return { voices: synth.voices.size, exportError, exportedLength: decoded.length, sourceLength: source.length, windows: times.map((time, i) => {
         const from = Math.round(time * audio.sampleRate), to = from + Math.round(.13 * audio.sampleRate);
         let peak = 0, delta = 0; const energy = [0, 0];
         for (let c = 0; c < 2; c++) for (let n = from; n < to; n++) {
@@ -46,6 +50,8 @@ const { translations: { en } } = require('../src/i18n/translations.ts');
       }) };
     });
     assert.equal(rendered.voices, 0, 'Ended nodes are cleaned up');
+    assert.equal(rendered.exportedLength, rendered.sourceLength, 'The WAV export has the same length as the in-game one-shot');
+    assert.ok(rendered.exportError <= 1 / 32767, 'The downloadable WAV matches the in-game audio within 16-bit quantization');
     rendered.windows.forEach(w => {
       assert.ok(w.peak > .002 && w.peak < .08, 'Impacts remain quiet with generous headroom');
       assert.ok(w.delta < .01 && w.tail, `Smooth transients finish within 130ms, with no repeating tail: ${JSON.stringify(w)}`);
@@ -53,7 +59,7 @@ const { translations: { en } } = require('../src/i18n/translations.ts');
     });
     assert.ok(new Set(rendered.windows.map(w => w.peak.toFixed(6))).size > 4, 'Natural per-contact variation');
     await offlinePage.close();
-    console.log('PASS: distance-driven gait at three frame rates and speeds; original offline audio, smooth quiet transients, stereo variation, short tails and node cleanup.');
+    console.log('PASS: exported WAV matches runtime audio; distance-driven gait at three frame rates and speeds; smooth quiet transients, stereo variation, short tails and node cleanup.');
 
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
     page.setDefaultTimeout(60000);
@@ -101,10 +107,8 @@ const { translations: { en } } = require('../src/i18n/translations.ts');
 
     await approach(page, 'listening-stone', '[ Sit & Listen ]');
     const stoneDirection = await page.evaluate(() => {
-      const root = window.__navScene.getObjectByName('spirit-surface-root');
-      const stone = window.__navScene.getObjectByName('listening-stone');
-      const v = stone.position.clone().normalize().applyQuaternion(root.quaternion.clone().invert());
-      const length = Math.hypot(v.x, v.z / .75); return [v.x / length, v.z / .75 / length];
+      const [x,y] = window.__navLandmarkDirection('listening-stone');
+      const length = Math.hypot(x,y); return [x / length, y / length];
     });
     await page.mouse.move(x, y); await page.mouse.down();
     await page.mouse.move(x + stoneDirection[0] * 28, y + stoneDirection[1] * 28);
@@ -119,6 +123,30 @@ const { translations: { en } } = require('../src/i18n/translations.ts');
     });
     assert.equal(await page.locator('#walking-footsteps').count(), 0);
     assert.deepEqual(recordings, []); assert.deepEqual(errors, []);
-    console.log('PASS: actual two-foot contacts, analog/keyboard speed, alternating feet, language continuity, release/blur/visibility/collision/rest silence, and zero recording requests.');
+    console.log('PASS: actual two-foot contacts, analog/keyboard speed, alternating feet, language continuity, release/blur/visibility/collision/rest silence, and zero legacy recording requests.');
+    await page.close();
+
+    for (const [id, answers] of [['DELTA_02',[1,1,1]],['SIGMA_03',[2,2,2]],['PSI_04',[0,1,2]]]) {
+      const world = await browser.newPage({ viewport: { width: 390, height: 844 }, reducedMotion: 'reduce' });
+      world.setDefaultTimeout(60000);
+      const button = name => world.getByRole('button', { name, exact: true });
+      await installControlledNarration(world); await world.goto(base);
+      await button(en.INTRO_COPY.startButton).click(); await world.waitForFunction(() => window.__introUtterance);
+      await world.evaluate(() => window.__finishIntro()); await button(en.interlude.ready).click();
+      await completeQuiz(world, answers); await button(en.planetGuide.confirm).click();
+      await installNavigation(world); await installFootstepCapture(world);
+      await world.keyboard.down('KeyA'); await world.waitForFunction(() => window.__footsteps.length >= 4);
+      await world.keyboard.up('KeyA');
+      const contacts = await world.evaluate(() => window.__footsteps.slice());
+      contacts.forEach((event, index) => {
+        assert.equal(event.id, id);
+        if (index) assert.notEqual(event.foot, contacts[index - 1].foot);
+        assert.ok(Math.abs(event.leftY - .045) < 1e-6 && Math.abs(event.rightY - .045) < 1e-6 && Math.abs(event.bodyY) < 1e-6, 'Rendered landing matches every sound');
+      });
+      await world.waitForTimeout(350);
+      assert.equal(await world.evaluate(() => window.__footsteps.length), contacts.length, 'Stopping cancels sounds on every world');
+      console.log(`PASS: ${id} generated audio follows alternating foot contacts and stops on release.`);
+      await world.close();
+    }
   } finally { await browser.close(); }
 })().catch(e => { console.error(e); process.exitCode = 1; });

@@ -11,9 +11,22 @@ async function installNavigation(page) {
     while (hook && !hook.memoizedState?.current?.renderer) hook = hook.next;
     const renderer = hook.memoizedState.current.renderer;
     const render = renderer.render.bind(renderer);
-    renderer.render = (scene, camera) => { render(scene, camera); window.__navScene = scene; };
+    renderer.render = (scene, camera) => { render(scene, camera); window.__navScene = scene; window.__navCamera = camera; };
     window.__navCanvas = canvas;
     window.__navRenderer = renderer;
+    window.__navLandmarkDirection = name => {
+      const root = window.__navScene.getObjectByName('spirit-surface-root');
+      const target = window.__navScene.getObjectByName(name);
+      const planet = window.__navScene.getObjectByName('planet-surface');
+      const direction = root.position.clone().normalize();
+      const tangent = target.position.clone().normalize();
+      tangent.addScaledVector(direction, -tangent.dot(direction)).normalize();
+      const origin = root.position.clone().applyMatrix4(planet.matrixWorld).project(window.__navCamera);
+      const step = planet.userData.surface.point(direction.clone().addScaledVector(tangent, .001).normalize())
+        .applyMatrix4(planet.matrixWorld).project(window.__navCamera);
+      const canvas = window.__navRenderer.domElement;
+      return [(step.x - origin.x) * canvas.clientWidth, (origin.y - step.y) * canvas.clientHeight, ...root.position.toArray()];
+    };
   });
   await page.waitForFunction(() => window.__navScene);
 }
@@ -30,12 +43,7 @@ async function approach(page, objectName, label) {
         ? await page.getByRole('button', { name: label, exact: true }).isVisible()
         : await page.evaluate(name => window.__navScene.getObjectByName(name).userData.interactions > 0, objectName);
       if (reached) return;
-      let [dx, dy, ...position] = await page.evaluate(name => {
-        const root = window.__navScene.getObjectByName('spirit-surface-root');
-        const target = window.__navScene.getObjectByName(name);
-        const local = target.position.clone().normalize().applyQuaternion(root.quaternion.clone().invert());
-        return [local.x, local.z / .75, ...root.position.toArray()];
-      }, objectName);
+      let [dx, dy, ...position] = await page.evaluate(name => window.__navLandmarkDirection(name), objectName);
       if (previousPosition && Math.hypot(...position.map((value,index)=>value-previousPosition[index])) < .001) stalled++;
       else stalled = Math.max(0, stalled-1);
       previousPosition = position;

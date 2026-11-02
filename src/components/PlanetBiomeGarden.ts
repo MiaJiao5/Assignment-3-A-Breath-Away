@@ -2,10 +2,11 @@ import * as THREE from 'three';
 import { soundEngine } from '../audio/soundEngine';
 import { surfaceCoordinates, type PlanetConfig } from '../data/roamingData';
 import { biomeParticleSvg, biomePropSvg } from './BiomeArt';
+import type { PlanetSurface } from '../geometry/planetSurface';
 
 // Roots, particles and footprints live in planet-local space. Illustrations
 // turn only around their local up axis, keeping their feet on the curved world.
-export function createPlanetGarden(planet: THREE.Group, radius: number, config: PlanetConfig) {
+export function createPlanetGarden(planet: THREE.Group, surface: PlanetSurface, config: PlanetConfig) {
   const garden = new THREE.Group();
   garden.name = 'interactive-garden';
   garden.userData = { biome: config.biome.id, planetId: config.id, reaction: config.biome.reaction, pendingTextures: 0 };
@@ -49,8 +50,8 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
     root.userData = { interactions: 0, propType: prop.type, angle: prop.angle, latitude: prop.latitude, biome: config.biome.id };
     const { lon, lat } = surfaceCoordinates(prop);
     const n = new THREE.Vector3(Math.sin(lon) * Math.cos(lat), Math.cos(lon) * Math.cos(lat), Math.sin(lat));
-    root.position.copy(n).multiplyScalar(radius + .008);
-    root.quaternion.setFromUnitVectors(yAxis, n);
+    surface.point(n, .008, root.position);
+    root.quaternion.setFromUnitVectors(yAxis, surface.normal(n));
     root.scale.setScalar(prop.scale);
     garden.add(root);
     const crown = new THREE.Group();
@@ -95,7 +96,7 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
     normal.copy(spirit.position).normalize();
     for (let i = 0; i < clusters.length; i++) {
       const cluster = clusters[i];
-      const near = normal.dot(cluster.normal) > Math.cos(cluster.near ? .44 : .34);
+      const near = spirit.position.distanceTo(cluster.root.position) < (cluster.near ? .74 : .57);
       if (near && !cluster.near && enabled && moving && time - cluster.lastTriggered > 5) {
         cluster.energy = 1; cluster.lastTriggered = time;
         cluster.root.userData.interactions++;
@@ -106,7 +107,7 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
           particle.mesh.scale.setScalar(config.biome.id === 'autumn' && particle.variant !== 2 ? .09 : .065);
           particle.origin.set(0, .3, 0).applyQuaternion(cluster.root.quaternion).add(cluster.root.position);
           particle.velocity.set(Math.sin(j * 2.4) * .09, .2 + j * .018, Math.cos(j * 2.4) * .09).applyQuaternion(cluster.root.quaternion);
-          particle.up.copy(cluster.normal);
+          particle.up.set(0, 1, 0).applyQuaternion(cluster.root.quaternion);
           particle.side.set(1, 0, 0).applyQuaternion(cluster.root.quaternion);
         }
       }
@@ -130,9 +131,9 @@ export function createPlanetGarden(planet: THREE.Group, radius: number, config: 
     if (stepDistance > .12 && !reducedMotion) {
       stepDistance = 0;
       const mark = footprints[footprintCursor++ % footprints.length];
-      helper.set(footprintCursor % 2 ? -.065 : .065, radius + .018, 0).applyQuaternion(spirit.quaternion).normalize().multiplyScalar(radius + .018);
-      mark.mesh.position.copy(helper);
-      mark.mesh.quaternion.setFromUnitVectors(zAxis, helper.normalize());
+      helper.set(footprintCursor % 2 ? -.065 : .065, .018, 0).applyQuaternion(spirit.quaternion).add(spirit.position).normalize();
+      surface.point(helper, .012, mark.mesh.position);
+      mark.mesh.quaternion.setFromUnitVectors(zAxis, surface.normal(helper, normal));
       mark.mesh.scale.set(.026, .045, 1); mark.bornAt = time; mark.mesh.visible = true;
     }
     for (const mark of footprints) {

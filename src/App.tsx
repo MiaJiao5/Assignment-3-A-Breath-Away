@@ -22,6 +22,9 @@ import { BilingualText } from './i18n/BilingualText';
 import { PlanetAtmosphere } from './components/PlanetAtmosphere';
 import { PlanetStarMessages } from './components/PlanetStarMessages';
 import { CoverTitle } from './components/CoverTitle';
+import { BubbleShapeSelector } from './components/BubbleShapeSelector';
+import type { BubbleShape } from './data/bubbleShapes';
+import { BUBBLE_RELEASE_DURATION_MS } from './components/ReleasedMessageBubble';
 import { publicAsset } from './utils/publicAsset';
 
 type AppAct = 'intro' | 'interlude' | 'quiz' | 'warp' | 'roaming' | 'farewell';
@@ -88,8 +91,20 @@ export default function App() {
   });
   // 树洞输入与头顶气泡
   const [moodInput, setMoodInput] = useState<string>('');
+  const [bubbleShape, setBubbleShape] = useState<BubbleShape>('cloud');
   const [overheadBubble, setOverheadBubble] = useState<OverheadBubbleData | null>(null);
   const bubbleTimerRef = useRef<number | null>(null);
+  const bubbleIdRef = useRef(0);
+
+  const clearOverheadBubble = useCallback(() => {
+    if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+    bubbleTimerRef.current = null;
+    setOverheadBubble(null);
+  }, []);
+
+  useEffect(() => () => {
+    if (bubbleTimerRef.current !== null) window.clearTimeout(bubbleTimerRef.current);
+  }, []);
 
   // 传送门浮层开关
   const [isPortalModalOpen, setIsPortalModalOpen] = useState<boolean>(false);
@@ -116,18 +131,21 @@ export default function App() {
   }, []);
 
   const triggerOverheadBubble = useCallback(
-    (text: string, isError = false, durationMs = 4000, messageKey?: 'emptyErrorBubble' | 'spiritHint' | 'stoneGuide') => {
+    (text: string, isError = false, durationMs = 4000, messageKey?: 'emptyErrorBubble' | 'spiritHint' | 'stoneGuide', shape?: BubbleShape) => {
       if (bubbleTimerRef.current) {
         clearTimeout(bubbleTimerRef.current);
       }
+      const id = ++bubbleIdRef.current;
       setOverheadBubble({
-        id: Date.now(),
+        id,
         text,
         isError,
         messageKey,
+        shape,
       });
       bubbleTimerRef.current = window.setTimeout(() => {
-        setOverheadBubble(null);
+        setOverheadBubble(current => current?.id === id ? null : current);
+        bubbleTimerRef.current = null;
       }, durationMs);
     },
     []
@@ -224,6 +242,7 @@ export default function App() {
     stopMovement();
 
     if (isRestingRef.current) {
+      clearOverheadBubble();
       isRestingRef.current = false;
       setHasRestedOnPlanet(true);
       if (!canLeave) {
@@ -262,8 +281,8 @@ export default function App() {
     setMoodInput('');
     setFeedback('releaseSuccess');
 
-    // 1. 头顶弹出边缘柔和的云朵状白色气泡显示 4 秒
-    triggerOverheadBubble(trimmed, false, 4000);
+    // Snapshot the current shape; the released thought follows its own timeline.
+    triggerOverheadBubble(trimmed, false, BUBBLE_RELEASE_DURATION_MS, undefined, bubbleShape);
 
     // Save the original text without mixing it into a planet's built-in cycle.
     const nextUserQuotes = [trimmed, ...userQuotes.filter((q) => q !== trimmed)].slice(0, 30);
@@ -279,6 +298,7 @@ export default function App() {
   // 通过【🌀 传送门】切换体验另外 3 个星球
   const handleSwitchPlanet = (nextPlanetId: PlanetId) => {
     if (isRestingRef.current || nextPlanetId === planetId || visitedPlanetIds.includes(nextPlanetId)) return;
+    clearOverheadBubble();
     setIsPortalModalOpen(false);
     setPlanetId(nextPlanetId);
     setHasRestedOnPlanet(false);
@@ -305,7 +325,7 @@ export default function App() {
     joystickInputRef.current = { x: 0, y: 0 };
     setIsMusicPlaying(false);
     setIsPortalModalOpen(false);
-    setOverheadBubble(null);
+    clearOverheadBubble();
     setSpiritPose('waving');
     setAct('farewell');
   };
@@ -340,7 +360,8 @@ export default function App() {
     setQuizStep(0);
     setVisitedPlanetIds([]);
     setFeedback(null);
-    setOverheadBubble(null);
+    setBubbleShape('cloud');
+    clearOverheadBubble();
     setSpiritPose('idle');
     setIsMusicPlaying(false);
     setAct('intro');
@@ -403,7 +424,7 @@ export default function App() {
 
   return (
     <div
-      className="w-screen h-screen flex items-center justify-center overflow-hidden transition-colors duration-1000"
+      className="app-viewport-shell w-screen h-screen flex items-center justify-center overflow-hidden transition-colors duration-1000"
       style={{
         background: currentColors.outerDesktopBg,
       }}
@@ -625,7 +646,7 @@ export default function App() {
 
         {/* ================= 第三幕 & 第四幕：3D 星球漫步、手势滑动、底部控制器、坐下听歌与星尘树洞 ================= */}
         {act === 'roaming' && (
-          <section inert={isHelpOpen || isPortalModalOpen} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
+          <section inert={isHelpOpen || isPortalModalOpen} data-listening={spiritPose === 'sitting'} className="planet-scene relative z-20 flex-1 flex flex-col justify-between overflow-hidden">
             <PlanetAtmosphere planetId={planetId} resting={spiritPose === 'sitting'} />
             {/* Planet interaction instructions */}
             <div className="px-5 pt-0.5 text-center z-20">
@@ -693,7 +714,8 @@ export default function App() {
                   <div className="message-slot">
                     {isMessageReady && (
                       <div className="message-panel flex flex-col gap-2">
-                        <h2 className="text-xs text-center"><BilingualText select={c => c.inputTitle} /></h2>
+                        <h2 className="sr-only"><BilingualText select={c => c.inputTitle} /></h2>
+                        <BubbleShapeSelector value={bubbleShape} onChange={setBubbleShape} />
                         {/* 第四幕：树洞气泡输入框与 [ 放飞 ] 按钮 */}
                         <form aria-label={copy.releaseBubble}
                           onSubmit={handleReleaseMood}

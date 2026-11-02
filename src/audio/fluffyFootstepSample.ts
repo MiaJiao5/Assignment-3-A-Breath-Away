@@ -1,7 +1,7 @@
 /** Original Fluffy Little Footsteps one-shot. Shared by runtime Web Audio and
  * the WAV export script, so the downloadable sound matches the in-game sound. */
 export const FLUFFY_FOOTSTEP_SECONDS = .118;
-export const FLUFFY_FOOTSTEP_GAIN = .375;
+export const FLUFFY_FOOTSTEP_GAIN = .43125;
 
 export function createFluffyFootstepSamples(sampleRate: number, seed = 0xaba2026): Float32Array {
   const samples = new Float32Array(Math.ceil(sampleRate * FLUFFY_FOOTSTEP_SECONDS));

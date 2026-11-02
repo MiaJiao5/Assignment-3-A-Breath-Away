@@ -39,6 +39,7 @@ For the farewell response, the text and actions move upward with flexible spacin
 
 - **Google AI Studio:** used to create the initial app prototype. The exact initial model/version and complete prompt history were not recorded.
 - **Codex:** used for later React/Three.js implementation, bilingual integration, Web Audio effects, styling, debugging, browser checks and documentation. I supplied the concept, intended users, visual references, interaction requirements and revision decisions.
+- **GPT / ChatGPT:** used to develop my own planet and farewell ideas into more detailed visual descriptions. I revised those descriptions before passing them to Codex to implement. This supported my design process rather than replacing my decisions.
 - **Gemini:** used to generate the four planet tracks and opening music. I selected and supplied the resulting files. The exact music model/version and prompt settings were not retained; the app does not call Gemini at runtime.
 - **Week 6 Python text-to-speech workflow in VS Code:** used to create the English and Chinese narration before adding the rendered audio to the app. English metadata identifies Kokoro-82M with voice `af_heart`, speed 0.9 and 24 kHz output. Chinese model/voice settings were not recorded. Course and model credits are in CREDITS.md.
 
@@ -46,9 +47,13 @@ For the farewell response, the text and actions move upward with flexible spacin
 
 **Suggestions changed or rejected:** the earlier heavy calligraphy treatment was changed to Allura Regular after comparing rendered results with the visual reference. The multiple-spirit farewell was rejected in favour of one waving companion. These were my design decisions during development, separate from the later friends' trial.
 
+For the cover, I used typography images found on Xiaohongshu as references when explaining the desired appearance to AI tools. I compared the rendered title with those references and revised the font choice, composition and gradients. The final lettering uses the licensed Allura font; AI assisted the implementation rather than creating a new font. The reference images are not bundled with the submission.
+
 ## Validation and remaining work
 
 During development, checks covered English-first entry, language and draft preservation, audio fades, movement and sitting, empty-input feedback, planet travel, farewell and mobile-sized layouts. A clean dependency installation, `npm run lint` and `npm run build` passed. An automated browser also exercised the deployed GitHub Pages site, including real audio playback and the main interaction. These checks are separate from the human trial above.
+
+For the final submission check, I installed the locked dependencies in an isolated source copy using cached packages (`npm ci --offline`), then passed type checking and a production build. A 390 × 844 mobile browser completed the production flow, including recorded narration, music playback, sitting, empty-input feedback, language switching with preserved text and music, and farewell. An unsigned-in browser could also open the public repository. I removed an unused legacy audio recording and corrected the setup notes to state that no runtime API key is needed.
 
 A previously reported long-circuit collision-clearance regression remains listed in README.md; the new surface checks are additional coverage. The refined farewell layout has passed responsive browser checks, and all three trial responses await follow-up participant feedback. The purpose of this document is to distinguish working features, reported feedback and future plans, without presenting planned work as completed.
 

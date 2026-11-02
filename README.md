@@ -30,11 +30,7 @@ Each planet has its own shape, surface details, plants and music, with the same 
 
 The farewell background reflects the last planet visited; this example follows Quiet Starsea. All screenshots show the English interface at the same mobile viewport size.
 
-<!-- Optional recording: after adding docs/demo.mp4, add this link here:
-[Watch the short demo with sound](docs/demo.mp4)
-Alternatively, use the public URL of a GitHub Release asset or hosted recording.
-No recording has been added yet; do not publish a link to a missing file.
--->
+An optional four-second [footstep sound preview](docs/audio/fluffy-little-footsteps-preview.wav) is included. The live experience demonstrates the full music, movement and bubble animations.
 
 ## Main interaction
 
@@ -70,6 +66,8 @@ npm run preview
 Open the preview URL printed in the terminal, normally **http://localhost:4173**. Serve the app through Vite rather than opening `dist/index.html` directly. Source files are in `src/`; necessary audio and fonts are in `public/`. Dependencies and exact npm resolutions are documented in `package.json` and `package-lock.json`.
 
 This is a browser project built with React, Three.js, Vite and Web Audio. It needs no API key, Python environment, microphone, paid service or model download at runtime. Generated music and narration are included as audio files; Python was used only to create narration before deployment.
+
+For GitHub Pages, use the existing **Build and deploy to GitHub Pages** workflow in `.github/workflows/deploy.yml`. It builds the app with the repository URL as its base and publishes `dist/`. Set the Pages publishing source to **GitHub Actions**; an additional static-HTML workflow is not needed.
 
 ## Known limitations
 

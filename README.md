@@ -2,6 +2,8 @@
 
 **[Try the live experience](https://miajiao5.github.io/Assignment-3-A-Breath-Away/)**
 
+[Phone video demo (3:48)](#video-demo)
+
 ## Idea and intended user
 
 A Breath Away is a lightweight, music-led interactive experience for office workers who want a brief pause from the pressure of the working day. It is designed around a work break of up to ten minutes, between tasks or meetings, when someone wants to step away and unwind but has limited time to leave their workplace.
@@ -29,6 +31,14 @@ Each planet has its own shape, surface details, plants and music, with the same 
 | <img src="docs/screenshots/farewell.png" width="220" alt="The farewell screen with one waving spirit, a welcome-back message, Take This Calm With You and Visit Another Planet actions" /> |
 
 The farewell background reflects the last planet visited; this example follows Quiet Starsea. All screenshots show the English interface at the same mobile viewport size.
+
+## Video demo
+
+[<img src="docs/screenshots/demo-poster.jpg" width="220" alt="A frame from the phone recording showing a cloud-shaped thought floating above Amber Sun" />](docs/demo.mp4)
+
+**[Phone demo (3 min 48 sec, MP4, 13.6 MB)](docs/demo.mp4)** · [Direct download](https://github.com/MiaJiao5/Assignment-3-A-Breath-Away/raw/refs/heads/main/docs/demo.mp4)
+
+Recorded by the project owner on a phone, the walkthrough shows language switching, the mood questions, exploring all four planets, sitting and listening, releasing message bubbles, portal travel and farewell. The compressed H.264/AAC copy retains the recording's audio. Download the MP4 and open it in a video player to watch with sound. The video is stored in `docs/` as submission documentation and is not bundled with the application.
 
 An optional four-second [footstep sound preview](docs/audio/fluffy-little-footsteps-preview.wav) is included. The live experience demonstrates the full music, movement and bubble animations.
 

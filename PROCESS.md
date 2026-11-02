@@ -55,6 +55,8 @@ During development, checks covered English-first entry, language and draft prese
 
 For the final submission check, I installed the locked dependencies in an isolated source copy using cached packages (`npm ci --offline`), then passed type checking and a production build. A 390 × 844 mobile browser completed the production flow, including recorded narration, music playback, sitting, empty-input feedback, language switching with preserved text and music, and farewell. An unsigned-in browser could also open the public repository. I removed an unused legacy audio recording and corrected the setup notes to state that no runtime API key is needed.
 
+I also recorded a 3-minute 48-second phone walkthrough to document the final experience, including language switching, the questions, all four planets, listening, message release, travel and farewell. A compressed copy with audio is included as `docs/demo.mp4` and linked from README.md. This owner-recorded demonstration is separate from the three friends' user trial described above.
+
 A previously reported long-circuit collision-clearance regression remains listed in README.md; the new surface checks are additional coverage. The refined farewell layout has passed responsive browser checks, and all three trial responses await follow-up participant feedback. The purpose of this document is to distinguish working features, reported feedback and future plans, without presenting planned work as completed.
 
 The repository's commits preserve the development history. Code, course material, fonts and audio sources are acknowledged in [CREDITS.md](CREDITS.md).

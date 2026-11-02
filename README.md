@@ -10,11 +10,25 @@ Visitors answer three gentle questions, explore a small pastel world with a fluf
 
 ## Screenshots
 
-| Cover | Exploring a planet | Sitting, listening and leaving a thought |
-| --- | --- | --- |
-| <img src="docs/screenshots/cover.png" width="220" alt="Three-line pastel calligraphy on the A Breath Away cover" /> | <img src="docs/screenshots/exploring.png" width="220" alt="The companion exploring Amber Sun with the joystick and landmark guidance" /> | <img src="docs/screenshots/listening.png" width="220" alt="The companion seated beside the Listening Stone with the thought input below" /> |
+The main journey: begin, answer three gentle questions, then sit and let a thought float away.
 
-These images show the current cover, planet exploration and listening interface.
+| Cover | Mood check-in and answer choices | Sitting, listening and releasing a thought |
+| --- | --- | --- |
+| <img src="docs/screenshots/cover.png" width="220" alt="Three-line pastel calligraphy on the A Breath Away cover" /> | <img src="docs/screenshots/questionnaire.png" width="220" alt="The first mood question with three illustrated answer buttons, progress dots and Back" /> | <img src="docs/screenshots/listening.png" width="220" alt="The seated companion releasing a cloud-shaped thought above Amber Sun, with the three bubble choices and input below" /> |
+
+Each planet has its own shape, surface details, plants and music, with the same exploration controls.
+
+| Ω-01 · Amber Sun | Δ-02 · Mint Breeze |
+| --- | --- |
+| <img src="docs/screenshots/amber-sun.png" width="220" alt="Amber Sun: a warm golden sphere with wheat and autumn plants" /> | <img src="docs/screenshots/mint-breeze.png" width="220" alt="Mint Breeze: a green organic world with four rounded lobes, leaf textures and forest plants" /> |
+| **Σ-03 · Zero-Gravity Sky** | **Ψ-04 · Quiet Starsea** |
+| <img src="docs/screenshots/zero-gravity-sky.png" width="220" alt="Zero-Gravity Sky: a rounded triangular cloud world against a blue and lavender sky" /> | <img src="docs/screenshots/quiet-starsea.png" width="220" alt="Quiet Starsea: a soft violet cube with cosmic plants, a glowing star and a portal" /> |
+
+| After selecting Leave |
+| --- |
+| <img src="docs/screenshots/farewell.png" width="220" alt="The farewell screen with one waving spirit, a welcome-back message, Take This Calm With You and Visit Another Planet actions" /> |
+
+The farewell background reflects the last planet visited; this example follows Quiet Starsea. All screenshots show the English interface at the same mobile viewport size.
 
 <!-- Optional recording: after adding docs/demo.mp4, add this link here:
 [Watch the short demo with sound](docs/demo.mp4)
